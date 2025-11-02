@@ -1,40 +1,217 @@
 <!doctype html>
-<html lang="="en">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Techip Admin Panel</title>
+  <title>Techip Admin</title>
   <style>
-    body {
-      font-family: system-ui, sans-serif;
-      background: #f9fbfc;
-      margin: 0;
-      padding: 20px;
-      color: #0b1a2b;
+    :root{
+      --brand:#0b3d91; --accent:#ffb703; --muted:#6b7280; --bg:#f7f9fc;
+      font-family:Inter,system-ui,Segoe UI,Roboto,Arial;
     }
-    header {
-      background: #0b3d91;
-      color: white;
-      padding: 16px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-    }
-    h1 {
-      margin: 0;
-      font-size: 20px;
-    }
-    .card {
-      background: white;
-      border: 1px solid #e6eef8;
-      border-radius: 8px;
-      padding: 16px;
-      margin-bottom: 20px;
-    }
-    input, button, textarea {
-      font-size: 14px;
-      padding: 8px;
-      margin: 6px 0;
-      width: 100%;
+    body{background:var(--bg);margin:0;padding:28px; color:#0b1a2b}
+    header{background:linear-gradient(90deg,var(--brand),#05408b);color:#fff;padding:18px;border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+    header h1{margin:0;font-size:20px;letter-spacing:0.2px}
+    header .sub{opacity:.95;font-size:13px}
+    .container{max-width:1100px;margin:18px auto}
+    .grid{display:grid;grid-template-columns:1fr 420px;gap:18px;align-items:start}
+    .card{background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 2px rgba(10,20,40,0.04);border:1px solid #e6eef8}
+    label{display:block;font-size:13px;margin-top:8px;color:#0b1a2b}
+    input[type="text"],input[type="email"],input[type="password"],select,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #e6eef8;background:#fbfdff;font-size:14px;margin-top:6px}
+    button{background:var(--brand);color:#fff;border:0;padding:9px 12px;border-radius:8px;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid #e6eef8;color:#0b1a2b}
+    .muted{color:var(--muted);font-size:13px}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{padding:8px;border-bottom:1px solid #f1f5f9;text-align:left;font-size:13px}
+    .actions button{margin-right:6px;padding:6px 8px;font-size:12px}
+    pre#debug{background:#0b1a2b;color:#fff;padding:10px;border-radius:8px;max-height:220px;overflow:auto}
+    .feature-toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px dashed #f2f6fb}
+    .feature-toggle:last-child{border-bottom:0}
+    .top-actions{display:flex;gap:10px;align-items:center}
+    @media(max-width:980px){ .grid{grid-template-columns:1fr; } .container{padding:8px} header{flex-direction:column;align-items:flex-start} }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Techip Admin</h1>
+      <div class="sub">Manage devices, profiles, and remotely toggle features</div>
+    </div>
+    <div class="top-actions">
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input id="email" type="email" placeholder="admin@example.com" style="width:220px;padding:8px;border-radius:8px;border:none" />
+        <input id="password" type="password" placeholder="Password" style="width:160px;padding:8px;border-radius:8px;border:none" />
+        <button id="signin-btn">Sign in</button>
+        <button id="signout-btn" class="ghost" style="display:none">Sign out</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="grid">
+      <div>
+        <section class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <strong id="status">Not signed in</strong>
+              <div class="muted" id="user-info">Sign in to see admin controls</div>
+            </div>
+            <div class="muted">Project: cnwerkocgdhimiwuawiv</div>
+          </div>
+          <hr style="margin:12px 0;border:none;border-top:1px solid #eef6ff">
+
+          <div id="admin-ui" style="display:none">
+            <h3 style="margin:0 0 8px 0">Devices & Commands</h3>
+            <div class="muted">Create devices, view list, and send commands</div>
+
+            <form id="device-create-form" style="margin-top:10px">
+              <label>Device name</label>
+              <input id="device-name" type="text" placeholder="Work phone" />
+              <label>Owner UID (optional)</label>
+              <input id="device-owner" type="text" placeholder="user-uid" />
+              <label>Model</label>
+              <input id="device-model" type="text" placeholder="Pixel 6a" />
+              <label>Initial features (JSON)</label>
+              <textarea id="device-features" rows="3" placeholder='{"block_play_store":false}'></textarea>
+              <div style="display:flex;gap:8px;margin-top:10px">
+                <button id="create-device">Create device</button>
+                <button id="clear-device" type="button" class="ghost">Clear</button>
+              </div>
+            </form>
+
+            <hr style="margin:12px 0;border:none;border-top:1px solid #eef6ff">
+
+            <h4 style="margin:8px 0">Devices List</h4>
+            <div class="muted">Realtime list (if enabled) or refresh below</div>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button id="refresh-devices" class="ghost">Refresh</button>
+              <button id="bulk-command" class="ghost">Send bulk command</button>
+            </div>
+            <div id="devices-loading" class="muted" style="margin-top:8px">Loading…</div>
+            <table id="devices-table" style="display:none">
+              <thead><tr><th>ID</th><th>Name</th><th>Owner</th><th>Model</th><th>Features</th><th>Actions</th></tr></thead>
+              <tbody id="devices-body"></tbody>
+            </table>
+
+            <hr style="margin:12px 0;border:none;border-top:1px solid #eef6ff">
+
+            <h4 style="margin:8px 0">Command Console</h4>
+            <div class="muted">Send a JSON command to a device (server will queue and push)</div>
+            <label>Device ID</label>
+            <input id="cmd-device" type="text" placeholder="device id" />
+            <label>Command JSON</label>
+            <textarea id="cmd-json" rows="3" placeholder='{"action":"set_feature","feature":"block_play_store","value":true}'></textarea>
+            <div style="margin-top:8px;display:flex;gap:8px">
+              <button id="send-cmd">Send Command (via server)</button>
+              <button id="send-cmd-local" class="ghost">Save command to DB (client)</button>
+            </div>
+
+            <hr style="margin:12px 0;border:none;border-top:1px solid #eef6ff">
+
+            <h4 style="margin:8px 0">Feature Quick Toggles</h4>
+            <div class="muted">Quick toggles create a command that enables/disables a feature on a device</div>
+            <div id="feature-list" style="margin-top:8px">
+              <!-- feature items populated by JS -->
+            </div>
+          </div>
+        </section>
+
+        <section class="card" style="margin-top:14px">
+          <h3 style="margin:0 0 8px 0">Profiles</h3>
+          <div class="muted">View profiles and toggle admin (if allowed)</div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button id="refresh-profiles" class="ghost">Refresh</button>
+          </div>
+          <div id="profiles-loading" class="muted" style="margin-top:8px">Loading…</div>
+          <table id="profiles-table" style="display:none">
+            <thead><tr><th>UID</th><th>Email</th><th>is_admin</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody id="profiles-body"></tbody>
+          </table>
+
+          <hr style="margin:12px 0;border:none;border-top:1px solid #eef6ff">
+
+          <h4 style="margin:8px 0">Create user (client)</h4>
+          <div class="muted">Creates auth user via client signUp (email verification may be required)</div>
+          <label>Email</label>
+          <input id="new-user-email" type="email" placeholder="user@example.com" />
+          <label>Password</label>
+          <input id="new-user-password" type="password" placeholder="Password" />
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button id="create-user-client">Create user (signUp)</button>
+            <button id="create-user-server" class="ghost">Create via server (admin)</button>
+          </div>
+        </section>
+      </div>
+
+      <aside>
+        <section class="card">
+          <h4>Server (privileged ops)</h4>
+          <div class="muted">This page calls a server for privileged actions (create admin, send push)</div>
+          <label>Server URL (deployed)</label>
+          <input id="server-url" type="text" placeholder="https://your-admin-server.example.com" />
+          <small class="muted">Set this to your deployed admin server. No secrets here.</small>
+          <hr style="margin:12px 0;border:none;border-top:1px solid #eef6ff">
+          <h4>Debug</h4>
+          <pre id="debug">Ready.</pre>
+        </section>
+
+        <section class="card" style="margin-top:14px">
+          <h4>How it works</h4>
+          <div class="muted" style="font-size:13px">
+            - Client uses anon key; server holds service_role and FCM credentials.<br>
+            - Use server "create-user" and "send-command" endpoints for privileged ops.<br>
+            - Devices should register fcm_token and poll for commands or receive push.
+          </div>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+    // CONFIG — replace anon key with your anon/public key
+    const SUPABASE_URL = 'https://cnwerkocgdhimiwuawiv.supabase.co'
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNud2Vya29jZ2RoaW1pd3Vhd2l2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTMwMjAsImV4cCI6MjA3NzY2OTAyMH0.X0ewxmFBh2ofhIQGPgDucJk9pQJylXDoLTerxYgrouw'
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true } })
+
+    // Elements
+    const emailInput = document.getElementById('email'), passwordInput = document.getElementById('password')
+    const signInBtn = document.getElementById('signin-btn'), signOutBtn = document.getElementById('signout-btn')
+    const statusEl = document.getElementById('status'), userInfo = document.getElementById('user-info')
+    const adminUi = document.getElementById('admin-ui')
+    const devicesLoading = document.getElementById('devices-loading'), devicesTable = document.getElementById('devices-table'), devicesBody = document.getElementById('devices-body')
+    const profilesLoading = document.getElementById('profiles-loading'), profilesTable = document.getElementById('profiles-table'), profilesBody = document.getElementById('profiles-body')
+    const createDeviceBtn = document.getElementById('create-device'), clearDeviceBtn = document.getElementById('clear-device')
+    const deviceCreateForm = document.getElementById('device-create-form')
+    const cmdDevice = document.getElementById('cmd-device'), cmdJson = document.getElementById('cmd-json'), sendCmdBtn = document.getElementById('send-cmd'), sendCmdLocalBtn = document.getElementById('send-cmd-local')
+    const refreshDevicesBtn = document.getElementById('refresh-devices'), refreshProfilesBtn = document.getElementById('refresh-profiles')
+    const newUserEmail = document.getElementById('new-user-email'), newUserPassword = document.getElementById('new-user-password')
+    const createUserClientBtn = document.getElementById('create-user-client'), createUserServerBtn = document.getElementById('create-user-server')
+    const serverUrlInput = document.getElementById('server-url'), debugEl = document.getElementById('debug')
+    const featureListEl = document.getElementById('feature-list')
+
+    function log(...args){ console.log(...args); debugEl.textContent = args.map(a=> typeof a==='object' ? JSON.stringify(a,null,2) : String(a)).join(' ') }
+
+    // common features list (from your features page — edit as needed)
+    const FEATURES = [
+      { key: 'block_play_store', label: 'Block Play Store' },
+      { key: 'disable_wifi', label: 'Disable Wi‑Fi' },
+      { key: 'disable_bluetooth', label: 'Disable Bluetooth' },
+      { key: 'block_settings', label: 'Block Settings' },
+      { key: 'force_kiosk', label: 'Force Kiosk Mode' },
+      { key: 'prevent_uninstall', label: 'Prevent Uninstall' },
+      { key: 'restrict_apps', label: 'Restrict Apps' }
+    ]
+
+    // init feature UI
+    function renderFeatureToggles(){
+      featureListEl.innerHTML = ''
+      for(const f of FEATURES){
+        const wrap = document.createElement('div'); wrap.className='feature-toggle'
+        const label = document.createElement('div'); label.textContent = f.label
+        const btn = document.createElement('button'); btn.textContent='Toggle on device'; btn.className='ghost'
+        btn.addEventListener      width: 100%;
       box-sizing: border-box;
     }
     button {
