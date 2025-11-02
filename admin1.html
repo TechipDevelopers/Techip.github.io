@@ -4,28 +4,472 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Techip Admin</title>
+  <style>
+    :root{font-family:system-ui,Segoe UI,Roboto,Arial;}
+    body{max-width:1100px;margin:20px auto;padding:18px;}
+    header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+    .card{border:1px solid #e5e7eb;padding:12px;border-radius:8px;margin-top:12px}
+    input,select,button,textarea{padding:8px;margin:6px 0;font-size:14px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px;border-bottom:1px solid #f1f5f9;text-align:left}
+    .hidden{display:none}
+    .muted{color:#6b7280;font-size:13px}
+    .actions button{margin-right:6px}
+    pre#debug{background:#fafafa;border:1px solid #eee;padding:8px;max-height:220px;overflow:auto}
+  </style>
 </head>
 <body>
-  <h1>Techip Admin</h1>
-  <input id="email" type="email" placeholder="Email" />
-  <input id="password" type="password" placeholder="Password" />
-  <button id="signin-btn">Sign in</button>
-  <button id="signout-btn">Sign out</button>
-  <div id="status">Not signed in</div>
+  <header>
+    <div>
+      <h1>Techip Admin</h1>
+      <div class="muted">Admin console — sign in with email + password</div>
+    </div>
+    <div id="auth-block">
+      <input id="email" type="email" placeholder="admin@example.com" />
+      <input id="password" type="password" placeholder="Password" />
+      <button id="signin-btn">Sign in</button>
+      <button id="signup-btn">Sign up</button>
+      <button id="reset-btn">Reset password</button>
+      <button id="signout-btn" class="hidden">Sign out</button>
+    </div>
+  </header>
+
+  <section class="card">
+    <div id="status">Not signed in</div>
+    <div id="admin-ui" class="hidden">
+      <h3>Device editor</h3>
+      <form id="device-form">
+        <input id="device-id" placeholder="Device ID (leave blank to create)" />
+        <input id="device-name" placeholder="Name" required />
+        <input id="device-owner" placeholder="Owner (uid)" />
+        <select id="device-status">
+          <option value="active">active</option>
+          <option value="inactive">inactive</option>
+        </select>
+        <textarea id="device-metadata" rows="3" placeholder='Metadata JSON (e.g. {"model":"A"})'></textarea>
+        <div>
+          <button id="save-device">Save</button>
+          <button id="clear-form" type="button">Clear</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>Devices</h3>
+    <div class="muted">Realtime list (updates automatically)</div>
+    <div id="devices-loading">Loading…</div>
+    <table id="devices-table" class="hidden">
+      <thead><tr><th>ID</th><th>Name</th><th>Owner</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+      <tbody id="devices-body"></tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h3>Profiles</h3>
+    <div class="muted">List of registered users (toggle admin)</div>
+    <div id="profiles-loading">Loading…</div>
+    <table id="profiles-table" class="hidden">
+      <thead><tr><th>UID</th><th>Email</th><th>is_admin</th><th>Created</th><th>Actions</th></tr></thead>
+      <tbody id="profiles-body"></tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h3>Debug / Console</h3>
+    <pre id="debug">Ready.</pre>
+  </section>
 
   <script type="module">
+    // Quick visible check that the script is loading
+    console.log('Techip Admin script loaded')
+    try {
+      alert('Techip Admin script loaded')
+    } catch (e) {
+      // ignore if alerts are blocked
+      console.warn('Alert blocked or not allowed', e)
+    }
+
     import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
+    // CONFIG — update if needed
     const SUPABASE_URL = 'https://lijxiqcgqjyzriieqfzk.supabase.co'
     const SUPABASE_ANON_KEY = 'sb_publishable_5sSws_n7zkBR8VWtGNRQFw_VsRjQjJc'
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
-    // ✅ Connection test
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: true, detectSessionInUrl: true }
+    })
+
+    // Small connection test (will alert and log result)
     ;(async () => {
-      const { data, error } = await supabase.from('devices').select('*').limit(1)
-      if (error) {
-        console.error('Supabase connection failed:', error)
-        alert('Supabase connection failed: ' + error.message)
+      try {
+        const { data, error } = await supabase.from('devices').select('*').limit(1)
+        if (error) {
+          console.error('Supabase connection failed:', error)
+          alert('Supabase connection failed: ' + (error.message || JSON.stringify(error)))
+        } else {
+          console.log('Supabase connection OK:', data)
+          alert('Supabase connection OK')
+        }
+      } catch (err) {
+        console.error('Supabase connection test exception:', err)
+        alert('Supabase connection test exception: ' + (err.message || String(err)))
+      }
+    })()
+
+    // Elements
+    const emailInput = document.getElementById('email')
+    const passwordInput = document.getElementById('password')
+    const signInBtn = document.getElementById('signin-btn')
+    const signUpBtn = document.getElementById('signup-btn')
+    const resetBtn = document.getElementById('reset-btn')
+    const signOutBtn = document.getElementById('signout-btn')
+    const statusEl = document.getElementById('status')
+    const adminUi = document.getElementById('admin-ui')
+    const deviceForm = document.getElementById('device-form')
+    const deviceIdInput = document.getElementById('device-id')
+    const deviceNameInput = document.getElementById('device-name')
+    const deviceOwnerInput = document.getElementById('device-owner')
+    const deviceStatusSelect = document.getElementById('device-status')
+    const deviceMetadataInput = document.getElementById('device-metadata')
+    const devicesLoading = document.getElementById('devices-loading')
+    const devicesTable = document.getElementById('devices-table')
+    const devicesBody = document.getElementById('devices-body')
+    const profilesLoading = document.getElementById('profiles-loading')
+    const profilesTable = document.getElementById('profiles-table')
+    const profilesBody = document.getElementById('profiles-body')
+    const debug = document.getElementById('debug')
+    const clearBtn = document.getElementById('clear-form')
+
+    function log(...args) {
+      console.log(...args)
+      debug.textContent = args.map(a => (typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a))).join(' ')
+    }
+
+    // AUTH: password-based sign in / sign up / reset / sign out
+    signInBtn.addEventListener('click', async () => {
+      const email = emailInput.value.trim()
+      const password = passwordInput.value || ''
+      if (!email || !password) return alert('Enter email and password')
+      signInBtn.disabled = true
+      try {
+        const res = await supabase.auth.signInWithPassword({ email, password })
+        log('signInWithPassword response', res)
+        if (res.error) {
+          alert('Sign-in failed: ' + res.error.message)
+          return
+        }
+        const { data: { user } } = await supabase.auth.getUser()
+        await updateUI(user)
+      } catch (err) {
+        log('Sign-in failed', err)
+        alert('Sign-in failed: ' + (err.message || err))
+      } finally {
+        signInBtn.disabled = false
+      }
+    })
+
+    signUpBtn.addEventListener('click', async () => {
+      const email = emailInput.value.trim()
+      const password = passwordInput.value || ''
+      if (!email || !password) return alert('Enter email and password')
+      signUpBtn.disabled = true
+      try {
+        const res = await supabase.auth.signUp({ email, password })
+        log('signUp response', res)
+        if (res.error) {
+          alert('Sign-up failed: ' + res.error.message)
+          return
+        }
+        alert('Sign-up successful. If email confirmation is required, check your inbox.')
+      } catch (err) {
+        log('Sign-up failed', err)
+        alert('Sign-up failed: ' + (err.message || err))
+      } finally {
+        signUpBtn.disabled = false
+      }
+    })
+
+    resetBtn.addEventListener('click', async () => {
+      const email = emailInput.value.trim()
+      if (!email) return alert('Enter your email to reset password')
+      resetBtn.disabled = true
+      try {
+        const res = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: location.origin + location.pathname
+        })
+        log('resetPasswordForEmail response', res)
+        if (res.error) {
+          alert('Password reset failed: ' + res.error.message)
+          return
+        }
+        alert('Password reset email sent. Check your inbox.')
+      } catch (err) {
+        log('Password reset error', err)
+        alert('Password reset failed: ' + (err.message || err))
+      } finally {
+        resetBtn.disabled = false
+      }
+    })
+
+    signOutBtn.addEventListener('click', async () => {
+      const { error } = await supabase.auth.signOut()
+      if (error) log('Sign-out error', error)
+      await updateUI(null)
+    })
+
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      log('Auth state:', event, session)
+      const user = session?.user ?? null
+      await updateUI(user)
+    })
+
+    async function updateUI(user) {
+      if (!user) {
+        statusEl.textContent = 'Not signed in'
+        adminUi.classList.add('hidden')
+        signOutBtn.classList.add('hidden')
+        signInBtn.classList.remove('hidden')
+        signUpBtn.classList.remove('hidden')
+        resetBtn.classList.remove('hidden')
+        devicesTable.classList.add('hidden')
+        profilesTable.classList.add('hidden')
       } else {
-        console.log('Supabase connection OK:', data)
-        alert('Supabase connection OK')
+        statusEl.textContent = `Signed in: ${user.email ?? user.id}`
+        adminUi.classList.remove('hidden')
+        signOutBtn.classList.remove('hidden')
+        signInBtn.classList.add('hidden')
+        signUpBtn.classList.add('hidden')
+        resetBtn.classList.add('hidden')
+        startRealtime()
+        await Promise.all([loadDevices(), loadProfiles()])
+      }
+    }
+
+    // INIT: read session on page load
+    ;(async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        await updateUI(user)
+      } catch (err) {
+        log('getUser failed', err)
+      }
+    })()
+
+    // DEVICE CRUD
+    async function loadDevices() {
+      devicesLoading.style.display = 'block'
+      devicesTable.classList.add('hidden')
+      try {
+        const { data, error } = await supabase
+          .from('devices')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(500)
+        if (error) throw error
+        renderDevices(data || [])
+      } catch (err) {
+        log('Load devices error', err)
+        devicesBody.innerHTML = '<tr><td colspan="6">Failed to load</td></tr>'
+      } finally {
+        devicesLoading.style.display = 'none'
+      }
+    }
+
+    function renderDevices(rows) {
+      devicesBody.innerHTML = ''
+      if (!rows.length) {
+        devicesBody.innerHTML = '<tr><td colspan="6">No devices</td></tr>'
+        devicesTable.classList.remove('hidden')
+        return
+      }
+      for (const r of rows) {
+        const tr = document.createElement('tr')
+        tr.innerHTML = `
+          <td>${escapeHtml(r.id)}</td>
+          <td>${escapeHtml(r.name)}</td>
+          <td>${escapeHtml(r.owner ?? '')}</td>
+          <td>${escapeHtml(r.status)}</td>
+          <td>${formatDate(r.created_at)}</td>
+          <td class="actions">
+            <button data-id="${r.id}" class="edit-device">Edit</button>
+            <button data-id="${r.id}" class="delete-device">Delete</button>
+          </td>
+        `
+        devicesBody.appendChild(tr)
+      }
+      devicesTable.classList.remove('hidden')
+
+      devicesBody.querySelectorAll('.edit-device').forEach(b => {
+        b.addEventListener('click', () => {
+          const id = b.getAttribute('data-id')
+          const row = rows.find(x => String(x.id) === String(id))
+          if (!row) return
+          deviceIdInput.value = row.id
+          deviceNameInput.value = row.name || ''
+          deviceOwnerInput.value = row.owner || ''
+          deviceStatusSelect.value = row.status || 'active'
+          deviceMetadataInput.value = JSON.stringify(row.metadata || {}, null, 2)
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        })
+      })
+
+      devicesBody.querySelectorAll('.delete-device').forEach(b => {
+        b.addEventListener('click', async () => {
+          const id = b.getAttribute('data-id')
+          if (!confirm('Delete device ' + id + '?')) return
+          try {
+            const { error } = await supabase.from('devices').delete().eq('id', id)
+            if (error) throw error
+            log('Deleted', id)
+            await loadDevices()
+          } catch (err) {
+            log('Delete device error', err)
+            alert('Delete failed: ' + (err.message || err))
+          }
+        })
+      })
+    }
+
+    deviceForm.addEventListener('submit', async (e) => {
+      e.preventDefault()
+      const id = deviceIdInput.value.trim()
+      const name = deviceNameInput.value.trim()
+      const owner = deviceOwnerInput.value.trim() || null
+      const status = deviceStatusSelect.value
+      let metadata = null
+      try {
+        metadata = deviceMetadataInput.value.trim() ? JSON.parse(deviceMetadataInput.value) : {}
+      } catch (err) {
+        return alert('Invalid JSON in metadata')
+      }
+      if (!name) return alert('Name required')
+      try {
+        if (!id) {
+          const { data, error } = await supabase.from('devices').insert([{ name, owner, status, metadata }]).select().single()
+          if (error) throw error
+          log('Created', data)
+        } else {
+          const { data, error } = await supabase.from('devices').update({ name, owner, status, metadata }).eq('id', id).select().single()
+          if (error) throw error
+          log('Updated', data)
+        }
+        clearForm()
+        await loadDevices()
+      } catch (err) {
+        log('Save device error', err)
+        alert('Save failed: ' + (err.message || err))
+      }
+    })
+
+    clearBtn.addEventListener('click', clearForm)
+    function clearForm() {
+      deviceIdInput.value = ''
+      deviceNameInput.value = ''
+      deviceOwnerInput.value = ''
+      deviceStatusSelect.value = 'active'
+      deviceMetadataInput.value = ''
+    }
+
+    // PROFILES (list and toggle admin)
+    async function loadProfiles() {
+      profilesLoading.style.display = 'block'
+      profilesTable.classList.add('hidden')
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(500)
+        if (error) throw error
+        renderProfiles(data || [])
+      } catch (err) {
+        log('Load profiles error', err)
+        profilesBody.innerHTML = '<tr><td colspan="5">Failed to load</td></tr>'
+      } finally {
+        profilesLoading.style.display = 'none'
+      }
+    }
+
+    function renderProfiles(rows) {
+      profilesBody.innerHTML = ''
+      if (!rows.length) {
+        profilesBody.innerHTML = '<tr><td colspan="5">No profiles</td></tr>'
+        profilesTable.classList.remove('hidden')
+        return
+      }
+      for (const r of rows) {
+        const tr = document.createElement('tr')
+        tr.innerHTML = `
+          <td>${escapeHtml(r.id)}</td>
+          <td>${escapeHtml(r.email)}</td>
+          <td>${escapeHtml(String(r.is_admin === true))}</td>
+          <td>${formatDate(r.created_at)}</td>
+          <td class="actions">
+            <button data-id="${r.id}" data-admin="${r.is_admin}" class="toggle-admin">${r.is_admin ? 'Revoke' : 'Make admin'}</button>
+          </td>
+        `
+        profilesBody.appendChild(tr)
+      }
+      profilesTable.classList.remove('hidden')
+
+      profilesBody.querySelectorAll('.toggle-admin').forEach(b => {
+        b.addEventListener('click', async () => {
+          const id = b.getAttribute('data-id')
+          const current = b.getAttribute('data-admin') === 'true'
+          if (!confirm(`${current ? 'Revoke admin from' : 'Grant admin to'} ${id}?`)) return
+          try {
+            const { data, error } = await supabase.from('profiles').update({ is_admin: !current }).eq('id', id).select().single()
+            if (error) throw error
+            log('Updated profile', data)
+            await loadProfiles()
+          } catch (err) {
+            log('Toggle admin error', err)
+            alert('Action failed: ' + (err.message || err))
+          }
+        })
+      })
+    }
+
+    // REALTIME: reload on changes
+    let realtimeChannel = null
+    function startRealtime() {
+      try {
+        if (realtimeChannel) return
+        realtimeChannel = supabase
+          .channel('realtime')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'devices' }, payload => {
+            log('Realtime (devices):', payload.eventType)
+            loadDevices()
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, payload => {
+            log('Realtime (profiles):', payload.eventType)
+            loadProfiles()
+          })
+          .subscribe(status => log('Realtime status', status))
+      } catch (err) {
+        log('Realtime setup failed', err)
+      }
+    }
+
+    // UTIL
+    function escapeHtml(s) {
+      if (s == null) return ''
+      return String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+    }
+    function formatDate(d) {
+      if (!d) return ''
+      const dt = new Date(d)
+      if (isNaN(dt)) return String(d)
+      return dt.toLocaleString()
+    }
+
+    // NOTES:
+    // - First admin: if you don't have an admin account yet, set is_admin = true for your profile
+    //   using the Supabase SQL editor or Dashboard Users panel:
+    //     update public.profiles set is_admin = true where email = 'you@example.com';
+    // - Ensure RLS policies allow admins to update profiles and manage devices. If toggling is_admin fails,
+    //   boot-strap the first admin via SQL as above.
+  </script>
+</body>
+</html>
