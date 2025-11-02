@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Techip Admin</title>
+  <style>
+    :root{font-family:system-ui,Segoe UI,Roboto,Arial;}
+    body{max-width:1100px;margin:20px auto;padding:18px;}
+    header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+    .card{border:1px solid #e5e7eb;padding:12px;border-radius:8px;margin-top:12px}
+    input,select,button,textarea{padding:8px;margin:6px 0;font-size:14px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px;border-bottom:1px solid #f1f5f9;text-align:left}
+    .hidden{display:none}
+    .muted{color:#6b7280;font-size:13px}
+    .actions button{margin-right:6px}
+    pre#debug{background:#fafafa;border:1px solid #eee;padding:8px;max-height:220px;overflow:auto}
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Techip Admin</h1>
+      <div class="muted">Admin console — sign in with email + password</div>
+    </div>
+    <div id="auth-block">
+      <input id="email" type="email" placeholder="admin@example.com" />
+      <input id="password" type="password" placeholder="Password" />
+      <button id="signin-btn">Sign in</button>
+      <button id="signup-btn">Sign up</button>
+      <button id="reset-btn">Reset password</button>
+      <button id="signout-btn" class="hidden">Sign out</button>
+    </div>
+  </header>
+
+  <section class="card">
+    <div id="status">Not signed in</div>
+    <div id="admin-ui" class="hidden">
+      <h3>Device editor</h3>
+      <form id="device-form">
+        <input id="device-id" placeholder="Device ID (leave blank to create)" />
+        <input id="device-name" placeholder="Name" required />
+        <input id="device-owner" placeholder="Owner (uid)" />
+        <select id="device-status">
+          <option value="active">active</option>
+          <option value="inactive">inactive</option>
+        </select>
+        <textarea id="device-metadata" rows="3" placeholder='Metadata JSON (e.g. {"model":"A"})'></textarea>
+        <div>
+          <button id="save-device">Save</button>
+          <button id="clear-form" type="button">Clear</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>Devices</h3>
+    <div class="muted">Realtime list (updates automatically)</div>
+    <div id="devices-loading">Loading…</div>
+    <table id="devices-table" class="hidden">
+      <thead><tr><th>ID</th><th>Name</th><th>Owner</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+      <tbody id="devices-body"></tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h3>Profiles</h3>
+    <div class="muted">List of registered users (toggle admin)</div>
+    <div id="profiles-loading">Loading…</div>
+    <table id="profiles-table" class="hidden">
+      <thead><tr><th>UID</th><th>Email</th><th>is_admin</th><th>Created</th><th>Actions</th></tr></thead>
+      <tbody id="profiles-body"></tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h3>Debug / Console</h3>
+    <pre id="debug">Ready.</pre>
+  </section>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net
