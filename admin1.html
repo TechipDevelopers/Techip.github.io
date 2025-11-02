@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Techip Admin</title>
+  <title>Techip Admin — Users & Devices</title>
   <style>
     :root{font-family:system-ui,Segoe UI,Roboto,Arial;}
     body{max-width:1100px;margin:20px auto;padding:18px;}
@@ -16,63 +16,82 @@
     .muted{color:#6b7280;font-size:13px}
     .actions button{margin-right:6px}
     pre#debug{background:#fafafa;border:1px solid #eee;padding:8px;max-height:220px;overflow:auto}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   </style>
 </head>
 <body>
   <header>
     <div>
       <h1>Techip Admin</h1>
-      <div class="muted">Admin console — sign in with email + password</div>
+      <div class="muted">Manage users and devices</div>
     </div>
     <div id="auth-block">
       <input id="email" type="email" placeholder="admin@example.com" />
       <input id="password" type="password" placeholder="Password" />
       <button id="signin-btn">Sign in</button>
-      <button id="signup-btn">Sign up</button>
-      <button id="reset-btn">Reset password</button>
       <button id="signout-btn" class="hidden">Sign out</button>
     </div>
   </header>
 
-  <section class="card">
+  <section class="card" id="status-card">
     <div id="status">Not signed in</div>
-    <div id="admin-ui" class="hidden">
-      <h3>Device editor</h3>
+  </section>
+
+  <div class="grid">
+    <section class="card">
+      <h3>Create user (client-side)</h3>
+      <div class="muted">Creates an auth user via supabase.auth.signUp (email + password). For full control use server endpoint below.</div>
+      <form id="create-user-form">
+        <input id="new-user-email" type="email" placeholder="newuser@example.com" required />
+        <input id="new-user-password" type="password" placeholder="Password" required />
+        <label><input id="new-user-admin" type="checkbox" /> make admin (requires server or subsequent SQL)</label>
+        <div>
+          <button id="create-user-btn">Create user (signUp)</button>
+        </div>
+      </form>
+
+      <hr />
+
+      <h4>Admin-create via server (optional)</h4>
+      <div class="muted">If you have a server endpoint that uses the service_role key, call it here to create users with passwords and is_admin flag set immediately.</div>
+      <form id="server-create-user-form">
+        <input id="svc-new-email" type="email" placeholder="newuser@example.com" />
+        <input id="svc-new-password" type="text" placeholder="Password" />
+        <label><input id="svc-new-admin" type="checkbox" /> is admin</label>
+        <div>
+          <button id="svc-create-user-btn" type="button">Create user via server</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card" id="device-card">
+      <h3>Create / Update Device</h3>
       <form id="device-form">
         <input id="device-id" placeholder="Device ID (leave blank to create)" />
         <input id="device-name" placeholder="Name" required />
         <input id="device-owner" placeholder="Owner (uid)" />
-        <select id="device-status">
-          <option value="active">active</option>
-          <option value="inactive">inactive</option>
-        </select>
+        <select id="device-status"><option value="active">active</option><option value="inactive">inactive</option></select>
         <textarea id="device-metadata" rows="3" placeholder='Metadata JSON (e.g. {"model":"A"})'></textarea>
         <div>
-          <button id="save-device">Save</button>
+          <button id="save-device">Save device</button>
           <button id="clear-form" type="button">Clear</button>
         </div>
       </form>
-    </div>
-  </section>
+    </section>
+  </div>
 
   <section class="card">
     <h3>Devices</h3>
-    <div class="muted">Realtime list (updates automatically)</div>
+    <div class="muted">Realtime list (auto refresh)</div>
     <div id="devices-loading">Loading…</div>
-    <table id="devices-table" class="hidden">
-      <thead><tr><th>ID</th><th>Name</th><th>Owner</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
-      <tbody id="devices-body"></tbody>
-    </table>
+    <table id="devices-table" class="hidden"><thead><tr><th>ID</th><th>Name</th><th>Owner</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody id="devices-body"></tbody></table>
   </section>
 
   <section class="card">
     <h3>Profiles</h3>
-    <div class="muted">List of registered users (toggle admin)</div>
+    <div class="muted">Toggle admin; first admin must be bootstrapped via SQL or server</div>
     <div id="profiles-loading">Loading…</div>
-    <table id="profiles-table" class="hidden">
-      <thead><tr><th>UID</th><th>Email</th><th>is_admin</th><th>Created</th><th>Actions</th></tr></thead>
-      <tbody id="profiles-body"></tbody>
-    </table>
+    <table id="profiles-table" class="hidden"><thead><tr><th>UID</th><th>Email</th><th>is_admin</th><th>Created</th><th>Actions</th></tr></thead><tbody id="profiles-body"></tbody></table>
   </section>
 
   <section class="card">
@@ -81,18 +100,9 @@
   </section>
 
   <script type="module">
-    // Quick visible check that the script is loading
-    console.log('Techip Admin script loaded')
-    try {
-      alert('Techip Admin script loaded')
-    } catch (e) {
-      // ignore if alerts are blocked
-      console.warn('Alert blocked or not allowed', e)
-    }
-
     import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-    // CONFIG — update if needed
+    // CONFIG
     const SUPABASE_URL = 'https://lijxiqcgqjyzriieqfzk.supabase.co'
     const SUPABASE_ANON_KEY = 'sb_publishable_5sSws_n7zkBR8VWtGNRQFw_VsRjQjJc'
 
@@ -100,53 +110,51 @@
       auth: { persistSession: true, detectSessionInUrl: true }
     })
 
-    // Small connection test (will alert and log result)
-    ;(async () => {
-      try {
-        const { data, error } = await supabase.from('devices').select('*').limit(1)
-        if (error) {
-          console.error('Supabase connection failed:', error)
-          alert('Supabase connection failed: ' + (error.message || JSON.stringify(error)))
-        } else {
-          console.log('Supabase connection OK:', data)
-          alert('Supabase connection OK')
-        }
-      } catch (err) {
-        console.error('Supabase connection test exception:', err)
-        alert('Supabase connection test exception: ' + (err.message || String(err)))
-      }
-    })()
+    // quick visible check
+    console.log('Techip Admin script loaded')
+    try { alert('Techip Admin script loaded') } catch(e) {}
 
     // Elements
     const emailInput = document.getElementById('email')
     const passwordInput = document.getElementById('password')
     const signInBtn = document.getElementById('signin-btn')
-    const signUpBtn = document.getElementById('signup-btn')
-    const resetBtn = document.getElementById('reset-btn')
     const signOutBtn = document.getElementById('signout-btn')
     const statusEl = document.getElementById('status')
-    const adminUi = document.getElementById('admin-ui')
+    const debug = document.getElementById('debug')
+
+    const createUserForm = document.getElementById('create-user-form')
+    const newUserEmail = document.getElementById('new-user-email')
+    const newUserPassword = document.getElementById('new-user-password')
+    const newUserAdmin = document.getElementById('new-user-admin')
+    const createUserBtn = document.getElementById('create-user-btn')
+
+    const svcCreateForm = document.getElementById('server-create-user-form')
+    const svcEmail = document.getElementById('svc-new-email')
+    const svcPassword = document.getElementById('svc-new-password')
+    const svcAdmin = document.getElementById('svc-new-admin')
+    const svcCreateBtn = document.getElementById('svc-create-user-btn')
+
     const deviceForm = document.getElementById('device-form')
     const deviceIdInput = document.getElementById('device-id')
     const deviceNameInput = document.getElementById('device-name')
     const deviceOwnerInput = document.getElementById('device-owner')
     const deviceStatusSelect = document.getElementById('device-status')
     const deviceMetadataInput = document.getElementById('device-metadata')
+    const clearBtn = document.getElementById('clear-form')
+
     const devicesLoading = document.getElementById('devices-loading')
     const devicesTable = document.getElementById('devices-table')
     const devicesBody = document.getElementById('devices-body')
     const profilesLoading = document.getElementById('profiles-loading')
     const profilesTable = document.getElementById('profiles-table')
     const profilesBody = document.getElementById('profiles-body')
-    const debug = document.getElementById('debug')
-    const clearBtn = document.getElementById('clear-form')
 
     function log(...args) {
       console.log(...args)
-      debug.textContent = args.map(a => (typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a))).join(' ')
+      debug.textContent = args.map(a => (typeof a === 'object' ? JSON.stringify(a,null,2) : String(a))).join(' ')
     }
 
-    // AUTH: password-based sign in / sign up / reset / sign out
+    // AUTH handlers
     signInBtn.addEventListener('click', async () => {
       const email = emailInput.value.trim()
       const password = passwordInput.value || ''
@@ -154,62 +162,14 @@
       signInBtn.disabled = true
       try {
         const res = await supabase.auth.signInWithPassword({ email, password })
-        log('signInWithPassword response', res)
-        if (res.error) {
-          alert('Sign-in failed: ' + res.error.message)
-          return
-        }
+        log('signIn response', res)
+        if (res.error) { alert('Sign-in failed: ' + res.error.message); return }
         const { data: { user } } = await supabase.auth.getUser()
         await updateUI(user)
       } catch (err) {
-        log('Sign-in failed', err)
+        log('Sign-in error', err)
         alert('Sign-in failed: ' + (err.message || err))
-      } finally {
-        signInBtn.disabled = false
-      }
-    })
-
-    signUpBtn.addEventListener('click', async () => {
-      const email = emailInput.value.trim()
-      const password = passwordInput.value || ''
-      if (!email || !password) return alert('Enter email and password')
-      signUpBtn.disabled = true
-      try {
-        const res = await supabase.auth.signUp({ email, password })
-        log('signUp response', res)
-        if (res.error) {
-          alert('Sign-up failed: ' + res.error.message)
-          return
-        }
-        alert('Sign-up successful. If email confirmation is required, check your inbox.')
-      } catch (err) {
-        log('Sign-up failed', err)
-        alert('Sign-up failed: ' + (err.message || err))
-      } finally {
-        signUpBtn.disabled = false
-      }
-    })
-
-    resetBtn.addEventListener('click', async () => {
-      const email = emailInput.value.trim()
-      if (!email) return alert('Enter your email to reset password')
-      resetBtn.disabled = true
-      try {
-        const res = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: location.origin + location.pathname
-        })
-        log('resetPasswordForEmail response', res)
-        if (res.error) {
-          alert('Password reset failed: ' + res.error.message)
-          return
-        }
-        alert('Password reset email sent. Check your inbox.')
-      } catch (err) {
-        log('Password reset error', err)
-        alert('Password reset failed: ' + (err.message || err))
-      } finally {
-        resetBtn.disabled = false
-      }
+      } finally { signInBtn.disabled = false }
     })
 
     signOutBtn.addEventListener('click', async () => {
@@ -227,26 +187,16 @@
     async function updateUI(user) {
       if (!user) {
         statusEl.textContent = 'Not signed in'
-        adminUi.classList.add('hidden')
         signOutBtn.classList.add('hidden')
-        signInBtn.classList.remove('hidden')
-        signUpBtn.classList.remove('hidden')
-        resetBtn.classList.remove('hidden')
-        devicesTable.classList.add('hidden')
-        profilesTable.classList.add('hidden')
       } else {
         statusEl.textContent = `Signed in: ${user.email ?? user.id}`
-        adminUi.classList.remove('hidden')
         signOutBtn.classList.remove('hidden')
-        signInBtn.classList.add('hidden')
-        signUpBtn.classList.add('hidden')
-        resetBtn.classList.add('hidden')
         startRealtime()
         await Promise.all([loadDevices(), loadProfiles()])
       }
     }
 
-    // INIT: read session on page load
+    // INIT
     ;(async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser()
@@ -256,220 +206,63 @@
       }
     })()
 
-    // DEVICE CRUD
-    async function loadDevices() {
-      devicesLoading.style.display = 'block'
-      devicesTable.classList.add('hidden')
-      try {
-        const { data, error } = await supabase
-          .from('devices')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(500)
-        if (error) throw error
-        renderDevices(data || [])
-      } catch (err) {
-        log('Load devices error', err)
-        devicesBody.innerHTML = '<tr><td colspan="6">Failed to load</td></tr>'
-      } finally {
-        devicesLoading.style.display = 'none'
-      }
-    }
-
-    function renderDevices(rows) {
-      devicesBody.innerHTML = ''
-      if (!rows.length) {
-        devicesBody.innerHTML = '<tr><td colspan="6">No devices</td></tr>'
-        devicesTable.classList.remove('hidden')
-        return
-      }
-      for (const r of rows) {
-        const tr = document.createElement('tr')
-        tr.innerHTML = `
-          <td>${escapeHtml(r.id)}</td>
-          <td>${escapeHtml(r.name)}</td>
-          <td>${escapeHtml(r.owner ?? '')}</td>
-          <td>${escapeHtml(r.status)}</td>
-          <td>${formatDate(r.created_at)}</td>
-          <td class="actions">
-            <button data-id="${r.id}" class="edit-device">Edit</button>
-            <button data-id="${r.id}" class="delete-device">Delete</button>
-          </td>
-        `
-        devicesBody.appendChild(tr)
-      }
-      devicesTable.classList.remove('hidden')
-
-      devicesBody.querySelectorAll('.edit-device').forEach(b => {
-        b.addEventListener('click', () => {
-          const id = b.getAttribute('data-id')
-          const row = rows.find(x => String(x.id) === String(id))
-          if (!row) return
-          deviceIdInput.value = row.id
-          deviceNameInput.value = row.name || ''
-          deviceOwnerInput.value = row.owner || ''
-          deviceStatusSelect.value = row.status || 'active'
-          deviceMetadataInput.value = JSON.stringify(row.metadata || {}, null, 2)
-          window.scrollTo({ top: 0, behavior: 'smooth' })
-        })
-      })
-
-      devicesBody.querySelectorAll('.delete-device').forEach(b => {
-        b.addEventListener('click', async () => {
-          const id = b.getAttribute('data-id')
-          if (!confirm('Delete device ' + id + '?')) return
-          try {
-            const { error } = await supabase.from('devices').delete().eq('id', id)
-            if (error) throw error
-            log('Deleted', id)
-            await loadDevices()
-          } catch (err) {
-            log('Delete device error', err)
-            alert('Delete failed: ' + (err.message || err))
-          }
-        })
-      })
-    }
-
-    deviceForm.addEventListener('submit', async (e) => {
+    // ------------------------
+    // Create user (client-side signUp)
+    // ------------------------
+    createUserForm.addEventListener('submit', async (e) => {
       e.preventDefault()
-      const id = deviceIdInput.value.trim()
-      const name = deviceNameInput.value.trim()
-      const owner = deviceOwnerInput.value.trim() || null
-      const status = deviceStatusSelect.value
-      let metadata = null
+      const email = newUserEmail.value.trim()
+      const password = newUserPassword.value || ''
+      const wantAdmin = newUserAdmin.checked
+      if (!email || !password) return alert('Email and password required')
+
+      createUserBtn.disabled = true
       try {
-        metadata = deviceMetadataInput.value.trim() ? JSON.parse(deviceMetadataInput.value) : {}
-      } catch (err) {
-        return alert('Invalid JSON in metadata')
-      }
-      if (!name) return alert('Name required')
-      try {
-        if (!id) {
-          const { data, error } = await supabase.from('devices').insert([{ name, owner, status, metadata }]).select().single()
-          if (error) throw error
-          log('Created', data)
-        } else {
-          const { data, error } = await supabase.from('devices').update({ name, owner, status, metadata }).eq('id', id).select().single()
-          if (error) throw error
-          log('Updated', data)
+        // Client signUp: creates an auth user; email confirmation may be required depending on your settings
+        const res = await supabase.auth.signUp({ email, password })
+        log('signUp response', res)
+        if (res.error) { alert('Create user failed: ' + res.error.message); return }
+
+        alert('User created via signUp. If email confirmation is required, user must confirm.')
+
+        // Optionally set is_admin in profiles table after user exists.
+        // Note: if you want to set is_admin immediately, call your server endpoint (service_role) or run SQL in Dashboard.
+        if (wantAdmin) {
+          alert('To make user admin immediately, run the server endpoint or update profiles via SQL; client cannot set is_admin without proper RLS and the user must exist.')
         }
-        clearForm()
-        await loadDevices()
+        newUserEmail.value = ''
+        newUserPassword.value = ''
+        newUserAdmin.checked = false
       } catch (err) {
-        log('Save device error', err)
-        alert('Save failed: ' + (err.message || err))
+        log('Create user error', err)
+        alert('Create user failed: ' + (err.message || err))
+      } finally {
+        createUserBtn.disabled = false
       }
     })
 
-    clearBtn.addEventListener('click', clearForm)
-    function clearForm() {
-      deviceIdInput.value = ''
-      deviceNameInput.value = ''
-      deviceOwnerInput.value = ''
-      deviceStatusSelect.value = 'active'
-      deviceMetadataInput.value = ''
-    }
-
-    // PROFILES (list and toggle admin)
-    async function loadProfiles() {
-      profilesLoading.style.display = 'block'
-      profilesTable.classList.add('hidden')
+    // ------------------------
+    // Optional: server user creation (call your server that uses service_role)
+    // Endpoint should accept JSON { email, password, is_admin } and return created user or error.
+    // Example server call below — replace /admin/create-user with your actual endpoint.
+    // ------------------------
+    svcCreateBtn?.addEventListener('click', async () => {
+      const email = svcEmail.value.trim()
+      const password = svcPassword.value || ''
+      const isAdmin = svcAdmin.checked
+      if (!email || !password) return alert('Email and password required')
+      svcCreateBtn.disabled = true
       try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(500)
-        if (error) throw error
-        renderProfiles(data || [])
-      } catch (err) {
-        log('Load profiles error', err)
-        profilesBody.innerHTML = '<tr><td colspan="5">Failed to load</td></tr>'
-      } finally {
-        profilesLoading.style.display = 'none'
-      }
-    }
-
-    function renderProfiles(rows) {
-      profilesBody.innerHTML = ''
-      if (!rows.length) {
-        profilesBody.innerHTML = '<tr><td colspan="5">No profiles</td></tr>'
-        profilesTable.classList.remove('hidden')
-        return
-      }
-      for (const r of rows) {
-        const tr = document.createElement('tr')
-        tr.innerHTML = `
-          <td>${escapeHtml(r.id)}</td>
-          <td>${escapeHtml(r.email)}</td>
-          <td>${escapeHtml(String(r.is_admin === true))}</td>
-          <td>${formatDate(r.created_at)}</td>
-          <td class="actions">
-            <button data-id="${r.id}" data-admin="${r.is_admin}" class="toggle-admin">${r.is_admin ? 'Revoke' : 'Make admin'}</button>
-          </td>
-        `
-        profilesBody.appendChild(tr)
-      }
-      profilesTable.classList.remove('hidden')
-
-      profilesBody.querySelectorAll('.toggle-admin').forEach(b => {
-        b.addEventListener('click', async () => {
-          const id = b.getAttribute('data-id')
-          const current = b.getAttribute('data-admin') === 'true'
-          if (!confirm(`${current ? 'Revoke admin from' : 'Grant admin to'} ${id}?`)) return
-          try {
-            const { data, error } = await supabase.from('profiles').update({ is_admin: !current }).eq('id', id).select().single()
-            if (error) throw error
-            log('Updated profile', data)
-            await loadProfiles()
-          } catch (err) {
-            log('Toggle admin error', err)
-            alert('Action failed: ' + (err.message || err))
-          }
+        const resp = await fetch('/admin/create-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, is_admin: isAdmin })
         })
-      })
-    }
-
-    // REALTIME: reload on changes
-    let realtimeChannel = null
-    function startRealtime() {
-      try {
-        if (realtimeChannel) return
-        realtimeChannel = supabase
-          .channel('realtime')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'devices' }, payload => {
-            log('Realtime (devices):', payload.eventType)
-            loadDevices()
-          })
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, payload => {
-            log('Realtime (profiles):', payload.eventType)
-            loadProfiles()
-          })
-          .subscribe(status => log('Realtime status', status))
-      } catch (err) {
-        log('Realtime setup failed', err)
-      }
-    }
-
-    // UTIL
-    function escapeHtml(s) {
-      if (s == null) return ''
-      return String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-    }
-    function formatDate(d) {
-      if (!d) return ''
-      const dt = new Date(d)
-      if (isNaN(dt)) return String(d)
-      return dt.toLocaleString()
-    }
-
-    // NOTES:
-    // - First admin: if you don't have an admin account yet, set is_admin = true for your profile
-    //   using the Supabase SQL editor or Dashboard Users panel:
-    //     update public.profiles set is_admin = true where email = 'you@example.com';
-    // - Ensure RLS policies allow admins to update profiles and manage devices. If toggling is_admin fails,
-    //   boot-strap the first admin via SQL as above.
-  </script>
-</body>
-</html>
+        const body = await resp.json()
+        if (!resp.ok) {
+          log('Server create user failed', body)
+          alert('Server create user failed: ' + (body.error || resp.statusText))
+        } else {
+          log('Server create user success', body)
+          alert('Server created user')
+          svcEmail.value = ''; svcPassword
