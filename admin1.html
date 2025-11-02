@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Techip Admin — Users · Devices · Features</title>
+  <title>Techip Admin — Users · Devices · Features (Debug)</title>
   <style>
     :root{
       --brand:#0b3d91; --muted:#6b7280; --bg:#f7f9fc; --card:#ffffff;
@@ -27,7 +27,6 @@
     .list li:hover{background:#f1f8ff;border-color:#e2f0ff}
     .list li.selected{background:#e8f3ff;border-color:#cfe9ff}
     .empty{padding:18px;text-align:center;color:var(--muted)}
-    .device-row{display:flex;gap:8px;align-items:center}
     .device-name{font-weight:600}
     .features{display:flex;flex-direction:column;gap:8px;margin-top:8px}
     .feature{display:flex;justify-content:space-between;align-items:center;padding:10px;border-radius:8px;border:1px solid #f1f5f9;background:#fff}
@@ -52,14 +51,14 @@
       </div>
     </header>
 
-    <!-- initial login / single entry -->
+    <!-- login card -->
     <div id="login-area" class="login-card" role="region" aria-label="Admin login">
       <input id="email" type="email" placeholder="admin@example.com" style="width:320px" />
       <input id="password" type="password" placeholder="Password" style="width:220px" />
       <button id="signin-btn">Admin Sign in</button>
     </div>
 
-    <!-- main app: left = users, mid = devices, right = features -->
+    <!-- main app -->
     <div id="app" style="display:none" class="main" aria-hidden="true">
       <aside class="panel small" aria-label="Users list">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -68,7 +67,7 @@
             <button id="refresh-profiles" class="ghost">Refresh</button>
           </div>
         </div>
-        <div id="profiles-empty" class="empty">Loading users…</div>
+        <div id="profiles-empty" class="empty">Sign in as admin to load users</div>
         <ul id="profiles-list" class="list" aria-live="polite"></ul>
       </aside>
 
@@ -105,16 +104,32 @@
   </div>
 
   <script type="module">
-    alert('Techip Admin script loaded');
+    // SANITY CHECKS (keeps extra logging to help debug why sign-in might "do nothing")
+    // You can remove these after you verify everything works
+    try {
+      alert('Script running — sanity check');
+    } catch (e) {
+      // ignore if alert blocked
+    }
+
+    // verbose click echo for quick test
+    document.addEventListener('DOMContentLoaded', () => {
+      const signinTestBtn = document.getElementById('signin-btn');
+      if (signinTestBtn) {
+        signinTestBtn.addEventListener('click', () => {
+          try { alert('signin button clicked (sanity)'); } catch (e) {}
+        }, { once: true });
+      }
+    });
 
     import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-    // ----- CONFIG: your Supabase project -----
+    // CONFIG
     const SUPABASE_URL = 'https://cnwerkocgdhimiwuawiv.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNud2Vya29jZ2RoaW1pd3Vhd2l2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTMwMjAsImV4cCI6MjA3NzY2OTAyMH0.X0ewxmFBh2ofhIQGPgDucJk9pQJylXDoLTerxYgrouw';
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true } });
 
-    // ----- DOM -----
+    // DOM
     const loginArea = document.getElementById('login-area');
     const signinBtn = document.getElementById('signin-btn'), signoutBtn = document.getElementById('signout-btn');
     const emailInput = document.getElementById('email'), passwordInput = document.getElementById('password');
@@ -131,7 +146,10 @@
     const featureTitle = document.getElementById('feature-title'), featureSub = document.getElementById('feature-sub');
     const debugEl = document.getElementById('debug'), applyAllBtn = document.getElementById('apply-all');
 
-    // ----- Feature map -----------------------
+    function log(...args){ console.log(...args); debugEl.textContent = args.map(a=> typeof a==='object' ? JSON.stringify(a,null,2) : String(a)).join(' '); }
+    function escapeHtml(s){ if (s == null) return ''; return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+
+    // Feature map (13 features)
     const FEATURE_MAP = [
       { key: 'block_play_store', label: 'Block Google Play Store' },
       { key: 'block_developer_options', label: 'Block Developer Options' },
@@ -149,44 +167,61 @@
       { key: 'block_inapp_ai_chats', label: 'Block In-App AI Chats' }
     ];
 
-    // ----- State --------------------------------
-    let profiles = [];
-    let selectedProfile = null;
-    let devices = [];
-    let selectedDevice = null;
-    let editingFeatures = {};
+    // State
+    let profiles = [], selectedProfile = null, devices = [], selectedDevice = null, editingFeatures = {};
 
-    // ----- Helpers ------------------------------
-    function log(...args){ console.log(...args); debugEl.textContent = args.map(a=> typeof a==='object' ? JSON.stringify(a,null,2) : String(a)).join(' '); }
-    function escapeHtml(s){ if (s == null) return ''; return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
-
-    // ----- Auth flows ---------------------------
-    signinBtn.addEventListener('click', async ()=>{
+    // --- Auth: verbose sign-in handler that logs full response
+    signinBtn.addEventListener('click', async () => {
       const email = emailInput.value.trim(), password = passwordInput.value;
-      if (!email || !password) return alert('Email and password required');
+      if (!email || !password) { alert('Email and password required'); return; }
+
       signinBtn.disabled = true;
       try {
+        // Explicit debug alert to confirm click handler executed
+        try { alert('Attempting sign-in (debug)'); } catch(e){}
+
+        // Make the call and log full response object
         const res = await supabase.auth.signInWithPassword({ email, password });
-        log('signIn', res);
-        if (res.error) throw res.error;
-        const { data: { user } } = await supabase.auth.getUser();
+        console.log('supabase.signInWithPassword ->', res);
+        log('supabase.signInWithPassword -> ' + JSON.stringify(res, null, 2));
+
+        if (res.error) {
+          alert('Sign-in failed: ' + res.error.message);
+          return;
+        }
+
+        // For SDK v2: getUser returns the current user
+        const { data: { user }, error: getUserError } = await supabase.auth.getUser();
+        if (getUserError) {
+          console.error('getUser error', getUserError);
+          alert('Sign-in succeeded but getting user failed: ' + getUserError.message);
+        } else {
+          alert('Sign-in success (debug)');
+        }
+
         await onAuth(user);
-      } catch (err) { log('signin err', err); alert('Sign-in failed: ' + (err.message || err)); }
-      finally { signinBtn.disabled = false; }
+      } catch (err) {
+        console.error('sign-in exception', err);
+        alert('Sign-in exception: ' + (err.message || err));
+      } finally {
+        signinBtn.disabled = false;
+      }
     });
 
-    signoutBtn.addEventListener('click', async ()=>{
+    // sign out
+    signoutBtn.addEventListener('click', async () => {
       await supabase.auth.signOut();
       await onAuth(null);
     });
 
+    // react to auth changes
     supabase.auth.onAuthStateChange(async (evt, session) => {
-      log('auth event', evt);
+      log('auth state change: ' + evt);
       await onAuth(session?.user ?? null);
     });
 
-    async function onAuth(user){
-      if (!user){
+    async function onAuth(user) {
+      if (!user) {
         // show only login
         app.style.display = 'none';
         app.setAttribute('aria-hidden', 'true');
@@ -198,8 +233,10 @@
         devicesBody.innerHTML = '';
         featuresList.innerHTML = '';
         profilesEmpty.textContent = 'Sign in as admin to load users';
+        log('Signed out');
         return;
       }
+
       // show app
       loginArea.style.display = 'none';
       app.style.display = 'flex';
@@ -207,24 +244,25 @@
       signedAs.style.display = 'inline-block';
       signedAs.textContent = 'Signed in as ' + (user.email || user.id);
       signoutBtn.style.display = 'inline-block';
-      // load users immediately
+
+      // load users
       await loadProfiles();
     }
 
-    // ----- Profiles (Users) ---------------------
+    // --- Profiles (users)
     refreshProfilesBtn.addEventListener('click', loadProfiles);
 
-    async function loadProfiles(){
+    async function loadProfiles() {
       profilesEmpty.textContent = 'Loading users…';
       profilesList.innerHTML = '';
       try {
-        // load profiles: change selected fields if your schema differs
-        const { data, error } = await supabase.from('profiles').select('id,email,created_at,is_admin').order('created_at',{ascending:false}).limit(2000);
+        const { data, error } = await supabase.from('profiles').select('id,email,created_at,is_admin').order('created_at', { ascending: false }).limit(2000);
         if (error) throw error;
         profiles = data || [];
         renderProfiles();
-        profilesEmpty.style.display = 'none';
+        profilesEmpty.style.display = profiles.length ? 'none' : 'block';
         if (!profiles.length) profilesEmpty.textContent = 'No users found';
+        log('profiles loaded: ' + (profiles.length));
       } catch (err) {
         profilesEmpty.textContent = 'Failed to load';
         log('loadProfiles err', err);
@@ -232,9 +270,9 @@
       }
     }
 
-    function renderProfiles(){
+    function renderProfiles() {
       profilesList.innerHTML = '';
-      if (!profiles.length){
+      if (!profiles.length) {
         profilesEmpty.style.display = 'block';
         profilesEmpty.textContent = 'No users';
         return;
@@ -243,15 +281,14 @@
       profiles.forEach(p => {
         const li = document.createElement('li');
         li.innerHTML = `<div>${escapeHtml(p.email || p.id)}</div><div class="muted" style="font-size:12px">${p.is_admin ? 'admin' : ''}</div>`;
-        li.addEventListener('click', ()=> selectProfile(p, li));
+        li.addEventListener('click', () => selectProfile(p, li));
         profilesList.appendChild(li);
       });
     }
 
-    // ----- Select profile -> load devices ------
-    async function selectProfile(profile, liEl){
-      // UI highlight
-      Array.from(profilesList.children).forEach(c=>c.classList.remove('selected'));
+    // --- Devices for profile
+    async function selectProfile(profile, liEl) {
+      Array.from(profilesList.children).forEach(c => c.classList.remove('selected'));
       liEl.classList.add('selected');
 
       selectedProfile = profile;
@@ -265,22 +302,23 @@
       await loadDevicesForProfile(profile.id);
     }
 
-    refreshDevicesBtn.addEventListener('click', async ()=>{
+    refreshDevicesBtn.addEventListener('click', async () => {
       if (!selectedProfile) return alert('Select a user first');
       await loadDevicesForProfile(selectedProfile.id);
     });
 
-    async function loadDevicesForProfile(profileId){
+    async function loadDevicesForProfile(profileId) {
       devicesEmpty.style.display = 'none';
       devicesTable.style.display = 'none';
       devicesBody.innerHTML = '';
       try {
-        // assumes devices.owner stores profile.id — change 'owner' if your column differs
-        const { data, error } = await supabase.from('devices').select('*').eq('owner', profileId).order('created_at',{ascending:false}).limit(2000);
+        // assumes devices.owner === profile.id
+        const { data, error } = await supabase.from('devices').select('*').eq('owner', profileId).order('created_at', { ascending: false }).limit(2000);
         if (error) throw error;
         devices = data || [];
         renderDevices();
         devicesSub.textContent = `${devices.length} device(s)`;
+        log('devices loaded for profile', profileId, devices.length);
       } catch (err) {
         devicesSub.textContent = 'Failed to load devices';
         log('loadDevices err', err);
@@ -288,9 +326,9 @@
       }
     }
 
-    function renderDevices(){
+    function renderDevices() {
       devicesBody.innerHTML = '';
-      if (!devices.length){
+      if (!devices.length) {
         devicesTable.style.display = 'none';
         devicesEmpty.style.display = 'block';
         devicesEmpty.textContent = 'No devices for this user';
@@ -305,16 +343,14 @@
                         <td style="vertical-align:middle"><span class="device-name clickable">${escapeHtml(d.name || '')}</span></td>
                         <td style="vertical-align:middle">${escapeHtml(d.model || '')}</td>
                         <td style="vertical-align:middle;max-width:180px;white-space:pre-wrap">${featuresPreview}</td>`;
-        // clicking the device name opens features
-        tr.querySelector('.clickable').addEventListener('click', ()=> selectDevice(d, tr));
+        tr.querySelector('.clickable').addEventListener('click', () => selectDevice(d, tr));
         devicesBody.appendChild(tr);
       });
     }
 
-    // ----- Select device -> show features -----
-    function selectDevice(device, trEl){
-      // highlight row
-      Array.from(devicesBody.querySelectorAll('tr')).forEach(r=>r.classList.remove('selected'));
+    // --- Device selection & features rendering
+    function selectDevice(device, trEl) {
+      Array.from(devicesBody.querySelectorAll('tr')).forEach(r => r.classList.remove('selected'));
       trEl.classList.add('selected');
 
       selectedDevice = device;
@@ -326,25 +362,21 @@
       applyAllBtn.style.display = 'none';
     }
 
-    function renderFeatureControls(){
+    function renderFeatureControls() {
       featuresList.innerHTML = '';
-      for (const f of FEATURE_MAP){
+      FEATURE_MAP.forEach((f, i) => {
         const wrap = document.createElement('div'); wrap.className = 'feature';
         const left = document.createElement('div'); left.className = 'label'; left.textContent = f.label;
         const right = document.createElement('div'); right.className = 'switch';
         const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!editingFeatures[f.key];
         cb.addEventListener('change', async () => {
-          // optimistic UI -> immediate toggle then persist
           editingFeatures[f.key] = cb.checked;
-          log('toggled', f.key, cb.checked);
+          log('toggle', f.key, cb.checked);
           try {
             await persistFeatureToggle(selectedDevice.id, f.key, cb.checked);
-            // update local selectedDevice and devices list
             selectedDevice.features = Object.assign({}, selectedDevice.features || {}, { [f.key]: cb.checked });
-            // refresh devices preview
             renderDevices();
           } catch (err) {
-            // revert on error
             cb.checked = !!(selectedDevice.features && selectedDevice.features[f.key]);
             alert('Save failed: ' + (err.message || err));
           }
@@ -352,20 +384,19 @@
         right.appendChild(cb);
         wrap.appendChild(left); wrap.appendChild(right);
         featuresList.appendChild(wrap);
-      }
+      });
     }
 
-    // update a single feature by merging existing JSON
-    async function persistFeatureToggle(deviceId, key, value){
+    // merge and update single feature
+    async function persistFeatureToggle(deviceId, key, value) {
       try {
-        // fetch latest features to avoid race conditions
+        // get latest to avoid overwrite
         const { data: latest, error: getErr } = await supabase.from('devices').select('features').eq('id', deviceId).single();
         if (getErr) throw getErr;
         const featuresNow = Object.assign({}, latest?.features || {}, { [key]: value });
         const { data, error } = await supabase.from('devices').update({ features: featuresNow }).eq('id', deviceId).select().single();
         if (error) throw error;
         log('persisted', key, value, 'device', deviceId);
-        // update local state
         selectedDevice.features = data.features;
         editingFeatures = Object.assign({}, data.features);
       } catch (err) {
@@ -374,17 +405,18 @@
       }
     }
 
-    // ----- boot: check session -----
-    (async ()=>{
+    // --- init: check existing session
+    (async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) await onAuth(user);
-      } catch (err) { log('init auth err', err); }
+      } catch (err) {
+        log('init auth err', err);
+      }
     })();
 
-    // ----- small usability helpers -----
-    // Create device (simple client flow) — lightweight prompt for admin convenience
-    document.getElementById('create-device-btn').addEventListener('click', async ()=>{
+        // small convenience: create device prompt
+    document.getElementById('create-device-btn').addEventListener('click', async () => {
       if (!selectedProfile) return alert('Select a user first');
       const name = prompt('Device name'); if (!name) return;
       const model = prompt('Device model (optional)') || '';
@@ -397,11 +429,9 @@
       } catch (err) { log('create device err', err); alert('Create device failed: ' + (err.message || err)); }
     });
 
-    // Utility: refresh button wiring
+    // wire refresh
     document.getElementById('refresh-profiles').addEventListener('click', loadProfiles);
 
-    // Escape helper
-    function escapeHtml(s){ if (s == null) return ''; return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
   </script>
 </body>
 </html>
