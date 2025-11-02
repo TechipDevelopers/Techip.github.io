@@ -128,7 +128,35 @@
     const SUPABASE_URL = 'https://cnwerkocgdhimiwuawiv.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNud2Vya29jZ2RoaW1pd3Vhd2l2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTMwMjAsImV4cCI6MjA3NzY2OTAyMH0.X0ewxmFBh2ofhIQGPgDucJk9pQJylXDoLTerxYgrouw';
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true } });
+    // on-page debug: shows getUser and profiles result directly in the UI
+(async () => {
+  const debugRootId = 'onpage-debug';
+  let debugRoot = document.getElementById(debugRootId);
+  if (!debugRoot) {
+    debugRoot = document.createElement('pre');
+    debugRoot.id = debugRootId;
+    debugRoot.style.background = '#0b1a2b';
+    debugRoot.style.color = '#fff';
+    debugRoot.style.padding = '10px';
+    debugRoot.style.borderRadius = '8px';
+    debugRoot.style.marginTop = '12px';
+    debugRoot.style.fontSize = '12px';
+    // append to the right panel debug area if present
+    const dbgTarget = document.getElementById('debug') || document.body;
+    dbgTarget.parentNode && dbgTarget.parentNode.insertBefore(debugRoot, dbgTarget.nextSibling);
+  }
+  try {
+    debugRoot.textContent = 'Checking signed-in user...';
+    const userRes = await supabase.auth.getUser();
+    debugRoot.textContent += '\ngetUser:\n' + JSON.stringify(userRes, null, 2);
 
+    debugRoot.textContent += '\n\nQuerying profiles...';
+    const profilesRes = await supabase.from('profiles').select('id,email,is_admin').limit(200);
+    debugRoot.textContent += '\nprofiles result:\n' + JSON.stringify(profilesRes, null, 2);
+  } catch (err) {
+    debugRoot.textContent += '\nERROR:\n' + (err.message || JSON.stringify(err));
+  }
+})();
     // DOM
     const loginArea = document.getElementById('login-area');
     const signinBtn = document.getElementById('signin-btn'), signoutBtn = document.getElementById('signout-btn');
