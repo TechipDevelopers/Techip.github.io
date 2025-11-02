@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Techip Admin — Minimal</title>
+  <style>
+    body{font-family:Inter,system-ui,Arial;margin:16px;background:#f7f9fc;color:#0b1a2b}
+    .card{background:#fff;padding:12px;border-radius:8px;border:1px solid #e6eef8;max-width:1000px;margin:0 auto}
+    input,button{padding:8px;border-radius:8px;border:1px solid #e6eef8;margin-right:6px}
+    #debug{white-space:pre-wrap;background:#0b1a2b;color:#fff;padding:10px;border-radius:8px;margin-top:10px;font-family:monospace}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Techip Admin (minimal)</h2>
+    <div id="signed-as" style="color:#6b7280"></div>
+    <div id="login-area">
+      <input id="email" type="email" placeholder="admin@example.com" />
+      <input id="password" type="password" placeholder="password" />
+      <button id="signin-btn">Sign in</button>
+      <button id="signout-btn" style="display:none">Sign out</button>
+    </div>
+
+    <div id="users-area" style="margin-top:12px">
+      <strong>Users</strong>
+      <div id="profiles-list" style="margin-top:8px;color:#374151"></div>
+    </div>
+
+    <div id="debug">Ready.</div>
+  </div>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+    const SUPABASE_URL = 'https://cnwerkocgdhimiwuawiv.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNud2Vya29jZ2RoaW1pd3Vhd2l2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTMwMjAsImV4cCI6MjA3NzY2OTAyMH0.X0ewxmFBh2ofhIQGPgDucJk9pQJylXDoLTerxYgrouw';
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true } });
+
+    const signinBtn = document.getElementById('signin-btn'), signoutBtn = document.getElementById('signout-btn');
+    const emailInput = document.getElementById('email'), passwordInput = document.getElementById('password');
+    const debugEl = document.getElementById('debug'), profilesListEl = document.getElementById('profiles-list'), signedAs = document.getElementById('signed-as');
+
+    function showDebug(...args){ debugEl.textContent = args.map(a => typeof a === 'object' ? JSON.stringify(a,null,2) : String(a)).join(' '); }
+
+    signinBtn.addEventListener('click', async () => {
+      const email = emailInput.value.trim(), password = passwordInput.value;
+      if (!email || !password) return alert('Email and password required');
+      signinBtn.disabled = true;
+      try {
+        const res = await supabase.auth.signInWithPassword({ email, password });
+        showDebug('signIn result', res);
+        if (res.error) return alert('Sign-in failed: ' + res.error.message);
+        const { data: { user } } = await supabase.auth.getUser();
+        signedAs.textContent = 'Signed in as: ' + (user?.email || user?.id);
+        signoutBtn.style.display = 'inline-block';
+        await loadAndShowProfiles();
+      } catch (err) {
+        showDebug('signIn exception', err);
+        alert('Sign-in exception: ' + (err?.message || err));
+      } finally { signinBtn.disabled = false; }
+    });
+
+    signoutBtn.addEventListener('click', async () => {
+      await supabase.auth.signOut();
+      signedAs.textContent = '';
+      profilesListEl.textContent = '';
+      showDebug('Signed out');
+      signoutBtn.style.display = 'none';
+    });
+
+    async function loadAndShowProfiles(){
+      showDebug('Querying profiles...');
+      try {
+        const profilesRes = await supabase.from('profiles').select('id,email,is_admin');
+        showDebug('profilesRes', profilesRes);
+        if (profilesRes.error) { profilesListEl.textContent = 'Error: ' + profilesRes.error.message; return; }
+        if (!profilesRes.data || !profilesRes.data.length) { profilesListEl.textContent = 'No profiles returned'; return; }
+        profilesListEl.textContent = profilesRes.data.map(p => p.email + (p.is_admin ? ' (admin)' : '')).join('\\n');
+      } catch (err) {
+        showDebug('profiles exception', err);
+        profilesListEl.textContent = 'profiles exception: ' + (err?.message || err);
+      }
+    }
+
+    // auto-check session on load
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          signedAs.textContent = 'Signed in as: ' + (user.email || user.id);
+          signoutBtn.style.display = 'inline-block';
+          await loadAndShowProfiles();
+        } else {
+          showDebug('No active user session');
+        }
+      } catch (err) { showDebug('init error', err); }
+    })();
+  </script>
+</body>
+</html>
