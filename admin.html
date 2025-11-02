@@ -1,178 +1,84 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Techip Admin Panel — Setup Mode</title>
+  <title>Techip Admin</title>
   <style>
-    body{font-family:system-ui,Arial;margin:0;padding:1rem;background:#071022;color:#e6eef8}
-    .wrap{max-width:1100px;margin:0 auto}
-    header{display:flex;align-items:center;justify-content:space-between}
-    button{padding:.45rem .75rem;border-radius:6px;border:0;background:#4f9cff;color:#fff;cursor:pointer}
-    .card{background:rgba(255,255,255,0.02);padding:.75rem;border-radius:8px;margin:.5rem 0}
-    .device-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:0.75rem}
-    .controls{display:flex;gap:.5rem;flex-wrap:wrap}
-    textarea{width:100%;height:6rem}
-    input,select{padding:.4rem;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit}
-    .muted{color:#9fb0c8;font-size:.9rem}
-    .notice { background: rgba(255,255,255,0.03); padding:.5rem; border-radius:6px; margin:.5rem 0; color:#cfe6ff; }
+    :root{font-family:system-ui,Segoe UI,Roboto,Arial;}
+    body{max-width:1100px;margin:20px auto;padding:18px;}
+    header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+    .card{border:1px solid #e5e7eb;padding:12px;border-radius:8px;margin-top:12px}
+    input,select,button,textarea{padding:8px;margin:6px 0;font-size:14px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px;border-bottom:1px solid #f1f5f9;text-align:left}
+    .hidden{display:none}
+    .muted{color:#6b7280;font-size:13px}
+    .actions button{margin-right:6px}
+    pre#debug{background:#fafafa;border:1px solid #eee;padding:8px;max-height:220px;overflow:auto}
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <div>
-        <h1 style="margin:.25rem 0">Techip Admin (Setup Mode)</h1>
-        <div class="muted">Auth bypassed for setup. Re-enable auth before production.</div>
-      </div>
-      <div>
-        <!-- Sign out hidden in setup mode -->
-      </div>
-    </header>
+  <header>
+    <div>
+      <h1>Techip Admin</h1>
+      <div class="muted">Admin console — sign in with email + password</div>
+    </div>
+    <div id="auth-block">
+      <input id="email" type="email" placeholder="admin@example.com" />
+      <input id="password" type="password" placeholder="Password" />
+      <button id="signin-btn">Sign in</button>
+      <button id="signup-btn">Sign up</button>
+      <button id="reset-btn">Reset password</button>
+      <button id="signout-btn" class="hidden">Sign out</button>
+    </div>
+  </header>
 
-    <main>
-      <section class="card notice">
-        This page runs in setup mode with the admin login disabled. Only use for initial testing. Do not leave this online in production.
-      </section>
-
-      <section id="adminPanel" style="display:none">
-        <div class="card">
-          <h3>Devices</h3>
-          <div id="deviceList" class="device-list"></div>
+  <section class="card">
+    <div id="status">Not signed in</div>
+    <div id="admin-ui" class="hidden">
+      <h3>Device editor</h3>
+      <form id="device-form">
+        <input id="device-id" placeholder="Device ID (leave blank to create)" />
+        <input id="device-name" placeholder="Name" required />
+        <input id="device-owner" placeholder="Owner (uid)" />
+        <select id="device-status">
+          <option value="active">active</option>
+          <option value="inactive">inactive</option>
+        </select>
+        <textarea id="device-metadata" rows="3" placeholder='Metadata JSON (e.g. {"model":"A"})'></textarea>
+        <div>
+          <button id="save-device">Save</button>
+          <button id="clear-form" type="button">Clear</button>
         </div>
+      </form>
+    </div>
+  </section>
 
-        <div class="card">
-          <h3>Quick command</h3>
-          <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem">
-            <input id="cmdDeviceId" placeholder="deviceId (leave empty to paste later)" />
-            <select id="cmdType">
-              <option value="applyPolicy">applyPolicy</option>
-              <option value="remoteLock">remoteLock</option>
-              <option value="testToast">testToast</option>
-            </select>
-            <button id="btnSendCmd">Send command</button>
-          </div>
-          <label class="muted">Payload (JSON)</label>
-          <textarea id="cmdPayload">{ "message": "Hello from admin" }</textarea>
-          <div id="cmdResult" class="muted" style="margin-top:.5rem"></div>
-        </div>
-      </section>
-    </main>
-  </div>
+  <section class="card">
+    <h3>Devices</h3>
+    <div class="muted">Realtime list (updates automatically)</div>
+    <div id="devices-loading">Loading…</div>
+    <table id="devices-table" class="hidden">
+      <thead><tr><th>ID</th><th>Name</th><th>Owner</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+      <tbody id="devices-body"></tbody>
+    </table>
+  </section>
 
-  <!-- Firebase compat SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script>
-    // ====== Your Firebase web config (project techip-block) ======
-    const firebaseConfig = {
-      apiKey: "AIzaSyAyupAnVxfe5_yv8aFbDSnRlZOGhDN4og8",
-      authDomain: "techip-block.firebaseapp.com",
-      projectId: "techip-block",
-      storageBucket: "techip-block.appspot.com",
-      messagingSenderId: "574468853695",
-      appId: "1:574468853695:web:f72e4215b108c012df9b0a",
-      measurementId: "G-7X03VZVS28"
-    };
-    // Initialize Firebase
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
+  <section class="card">
+    <h3>Profiles</h3>
+    <div class="muted">List of registered users (toggle admin)</div>
+    <div id="profiles-loading">Loading…</div>
+    <table id="profiles-table" class="hidden">
+      <thead><tr><th>UID</th><th>Email</th><th>is_admin</th><th>Created</th><th>Actions</th></tr></thead>
+      <tbody id="profiles-body"></tbody>
+    </table>
+  </section>
 
-    // UI refs
-    const adminPanel = document.getElementById('adminPanel');
-    const deviceList = document.getElementById('deviceList');
-    const cmdDeviceId = document.getElementById('cmdDeviceId');
-    const cmdType = document.getElementById('cmdType');
-    const cmdPayload = document.getElementById('cmdPayload');
-    const cmdResult = document.getElementById('cmdResult');
-    const btnSendCmd = document.getElementById('btnSendCmd');
+  <section class="card">
+    <h3>Debug / Console</h3>
+    <pre id="debug">Ready.</pre>
+  </section>
 
-    // Show panel and attach device listener immediately (bypassing auth)
-    adminPanel.style.display = 'block';
-
-    // Attach realtime listener to /devices
-    let devicesUnsub = null;
-    function attachDeviceListener(){
-      if (devicesUnsub) devicesUnsub();
-      devicesUnsub = db.collection('devices').orderBy('registeredAt', 'desc')
-        .onSnapshot((snap) => {
-          deviceList.innerHTML = '';
-          snap.forEach(doc => {
-            const d = doc.data();
-            const id = doc.id;
-            const card = document.createElement('div');
-            card.className = 'card';
-            card.innerHTML = `
-              <div><strong>${escapeHtml(d.deviceModel || 'Unknown model')}</strong> <span class="muted">${escapeHtml(d.ownerUid || '')}</span></div>
-              <div class="muted">deviceId: ${escapeHtml(id)}</div>
-              <div class="muted">lastSeen: ${d.lastSeen ? d.lastSeen.toDate().toLocaleString() : '—'}</div>
-              <div style="margin-top:.5rem" class="controls">
-                <button data-id="${escapeAttr(id)}" class="btnCmd" data-cmd="testToast">Test Toast</button>
-                <button data-id="${escapeAttr(id)}" class="btnCmd" data-cmd="remoteLock">Remote Lock</button>
-                <button data-id="${escapeAttr(id)}" class="btnCmd" data-cmd="applyPolicy">Apply Policy</button>
-              </div>
-            `;
-            deviceList.appendChild(card);
-          });
-        }, (err) => {
-          console.error('Devices listener error', err);
-          deviceList.innerHTML = '<div class="muted">Error loading devices: ' + (err && err.message ? escapeHtml(err.message) : 'unknown') + '</div>';
-        });
-    }
-
-    // Send command helper
-    async function sendCommand(deviceId, type, payload) {
-      try {
-        cmdResult.textContent = 'Sending...';
-        await db.collection('devices').doc(deviceId).collection('commands').add({
-          type, payload, createdAt: firebase.firestore.FieldValue.serverTimestamp(), status: 'pending'
-        });
-        cmdResult.textContent = 'Command queued for ' + deviceId;
-      } catch (e) {
-        console.error('sendCommand error', e);
-        cmdResult.textContent = 'Error: ' + (e && e.message ? e.message : e);
-      }
-    }
-
-    // Click handlers for device buttons
-    document.addEventListener('click', async (ev) => {
-      const t = ev.target;
-      if (t.classList.contains('btnCmd')) {
-        const id = t.dataset.id;
-        const cmd = t.dataset.cmd;
-        let payload = {};
-        if (cmd === 'testToast') payload = { message: 'Hello from admin' };
-        if (cmd === 'applyPolicy') payload = { disableCamera: true };
-        await sendCommand(id, cmd, payload);
-      }
-    });
-
-    btnSendCmd.addEventListener('click', async () => {
-      const id = (cmdDeviceId.value || '').trim();
-      if (!id) { cmdResult.textContent = 'Enter deviceId or click a device to auto-fill'; return; }
-      let payload;
-      try { payload = JSON.parse(cmdPayload.value || '{}'); } catch (e) { cmdResult.textContent = 'Invalid JSON payload'; return; }
-      await sendCommand(id, cmdType.value, payload);
-    });
-
-    // Click-to-fill deviceId
-    deviceList.addEventListener('click', (ev) => {
-      const btn = ev.target.closest('button[data-id]');
-      if (!btn) return;
-      cmdDeviceId.value = btn.dataset.id;
-      cmdResult.textContent = 'deviceId filled: ' + btn.dataset.id;
-    });
-
-    // Start listener
-    attachDeviceListener();
-
-    // Small helpers to avoid injecting unescaped text into DOM
-    function escapeHtml(str) {
-      if (!str && str !== 0) return '';
-      return String(str).replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; });
-    }
-    function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
-  </script>
-</body>
-</html>
-```[43dcd9a7-70db-4a1f-b0ae-981daa162054](https://github.com/freemandesign/FM-profile/tree/87c3b423653d3cc42b578f567deea196d77ae56b/js%2Ffm.js?citationMarker=43dcd9a7-70db-4a1f-b0ae-981daa162054 "1")[43dcd9a7-70db-4a1f-b0ae-981daa162054](https://github.com/18613692934/haier/tree/ea94f331ace0c1929b6d35ee60cd29e336bc08b9/Public%2Fstatic%2Fselectivity%2Fjavascripts%2Fmain.js?citationMarker=43dcd9a7-70db-4a1f-b0ae-981daa162054 "2")
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net
