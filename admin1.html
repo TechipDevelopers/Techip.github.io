@@ -5,139 +5,419 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Techip Admin</title>
   <style>
-    body { font-family: system-ui, sans-serif; background: #f9fbfc; margin: 0; padding: 20px; color: #0b1a2b; }
-    header { background: #0b3d91; color: white; padding: 16px; border-radius: 8px; margin-bottom: 20px; }
-    h1 { margin: 0; font-size: 20px; }
-    .card { background: white; border: 1px solid #e6eef8; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
-    input, button, textarea { font-size: 14px; padding: 8px; margin: 6px 0; width: 100%; box-sizing: border-box; }
-    button { background: #0b3d91; color: white; border: none; border-radius: 6px; cursor: pointer; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { padding: 8px; border-bottom: 1px solid #e6eef8; text-align: left; }
-    .muted { color: #6b7280; font-size: 13px; }
-    #debug { background: #f0f4f8; padding: 10px; border-radius: 6px; font-size: 13px; white-space: pre-wrap; }
+    :root{
+      --brand:#0b3d91; --accent:#ffb703; --muted:#6b7280; --bg:#f7f9fc;
+      font-family:Inter,system-ui,Segoe UI,Roboto,Arial;
+    }
+    body{background:var(--bg);margin:0;padding:28px;color:#0b1a2b}
+    header{background:linear-gradient(90deg,var(--brand),#05408b);color:#fff;padding:18px;border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+    header h1{margin:0;font-size:20px}
+    .container{max-width:1100px;margin:18px auto}
+    .grid{display:grid;grid-template-columns:1fr 420px;gap:18px;align-items:start}
+    .card{background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 2px rgba(10,20,40,0.04);border:1px solid #e6eef8}
+    input,textarea,select{width:100%;padding:10px;border-radius:8px;border:1px solid #e6eef8;background:#fbfdff;font-size:14px;margin-top:6px}
+    button{background:var(--brand);color:#fff;border:0;padding:9px 12px;border-radius:8px;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid #e6eef8;color:#0b1a2b}
+    .muted{color:var(--muted);font-size:13px}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{padding:8px;border-bottom:1px solid #f1f5f9;text-align:left;font-size:13px}
+    pre#debug{background:#0b1a2b;color:#fff;padding:10px;border-radius:8px;max-height:220px;overflow:auto}
+    .feature-toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px dashed #f2f6fb}
+    .feature-toggle:last-child{border-bottom:0}
+    @media(max-width:980px){ .grid{grid-template-columns:1fr} }
   </style>
 </head>
 <body>
   <header>
-    <h1>Techip Admin Panel</h1>
-    <div class="muted">Manage devices and users linked to your MDM app</div>
+    <div>
+      <h1>Techip Admin</h1>
+      <div class="muted">Manage devices, profiles, and remotely toggle features</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input id="email" type="email" placeholder="admin@example.com" style="width:220px;padding:8px;border-radius:8px;border:none" />
+      <input id="password" type="password" placeholder="Password" style="width:160px;padding:8px;border-radius:8px;border:none" />
+      <button id="signin-btn">Sign in</button>
+      <button id="signout-btn" class="ghost" style="display:none">Sign out</button>
+    </div>
   </header>
 
-  <div class="card">
-    <h2>Sign In</h2>
-    <input id="email" type="email" placeholder="Email" />
-    <input id="password" type="password" placeholder="Password" />
-    <button id="signin-btn">Sign In</button>
-    <button id="signout-btn" style="display:none;">Sign Out</button>
-    <div id="status" class="muted">Not signed in</div>
-  </div>
+  <div class="container">
+    <div class="grid">
+      <main>
+        <section class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <strong id="status">Not signed in</strong>
+              <div class="muted" id="user-info">Sign in to see admin controls</div>
+            </div>
+            <div class="muted">Project: cnwerkocgdhimiwuawiv</div>
+          </div>
 
-  <div class="card" id="admin-ui" style="display:none;">
-    <h2>Create Device</h2>
-    <input id="device-name" placeholder="Device Name" />
-    <input id="device-model" placeholder="Device Model" />
-    <input id="device-owner" placeholder="Owner UID (optional)" />
-    <textarea id="device-features" rows="3" placeholder='{"block_play_store":true}'></textarea>
-    <button id="create-device">Create Device</button>
+          <hr style="margin:12px 0;border:none;border-top:1px solid #eef6ff">
 
-    <h2 style="margin-top:20px;">Devices</h2>
-    <div id="devices-loading" class="muted">Loading...</div>
-    <table id="devices-table" style="display:none;">
-      <thead><tr><th>ID</th><th>Name</th><th>Model</th><th>Owner</th><th>Created</th></tr></thead>
-      <tbody id="devices-body"></tbody>
-    </table>
-  </div>
+          <div id="admin-ui" style="display:none">
+            <h3>Devices & Commands</h3>
+            <div class="muted">Create devices, view list, and send commands</div>
 
-  <div class="card">
-    <h2>Debug Console</h2>
-    <pre id="debug">Ready.</pre>
+            <form id="device-create-form" style="margin-top:10px">
+              <label>Device name</label>
+              <input id="device-name" type="text" placeholder="Work phone" />
+              <label>Owner UID (optional)</label>
+              <input id="device-owner" type="text" placeholder="user-uid" />
+              <label>Model</label>
+              <input id="device-model" type="text" placeholder="Pixel 6a" />
+              <label>Initial features (JSON)</label>
+              <textarea id="device-features" rows="3" placeholder='{"block_play_store":false}'></textarea>
+              <div style="display:flex;gap:8px;margin-top:10px">
+                <button id="create-device" type="submit">Create device</button>
+                <button id="clear-device" type="button" class="ghost">Clear</button>
+              </div>
+            </form>
+
+            <hr style="margin:12px 0;border:none;border-top:1px solid #eef6ff">
+
+            <h4>Devices List</h4>
+            <div class="muted">Realtime list (if enabled) or refresh below</div>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button id="refresh-devices" class="ghost">Refresh</button>
+              <button id="bulk-command" class="ghost">Send bulk command</button>
+            </div>
+            <div id="devices-loading" class="muted" style="margin-top:8px">Loading…</div>
+            <table id="devices-table" style="display:none">
+              <thead><tr><th>ID</th><th>Name</th><th>Owner</th><th>Model</th><th>Features</th><th>Actions</th></tr></thead>
+              <tbody id="devices-body"></tbody>
+            </table>
+
+            <hr style="margin:12px 0;border:none;border-top:1px solid #eef6ff">
+
+            <h4>Command Console</h4>
+            <div class="muted">Send a JSON command to a device (server will queue and push)</div>
+            <label>Device ID</label>
+            <input id="cmd-device" type="text" placeholder="device id" />
+            <label>Command JSON</label>
+            <textarea id="cmd-json" rows="3" placeholder='{"action":"set_feature","feature":"block_play_store","value":true}'></textarea>
+            <div style="margin-top:8px;display:flex;gap:8px">
+              <button id="send-cmd">Send Command (via server)</button>
+              <button id="send-cmd-local" class="ghost">Save command to DB (client)</button>
+            </div>
+
+            <hr style="margin:12px 0;border:none;border-top:1px solid #eef6ff">
+
+            <h4>Feature Quick Toggles</h4>
+            <div class="muted">Quick toggles create a command that enables/disables a feature on a device</div>
+            <div id="feature-list" style="margin-top:8px"></div>
+          </div>
+        </section>
+
+        <section class="card" style="margin-top:14px">
+          <h3>Profiles</h3>
+          <div class="muted">View profiles and toggle admin (if allowed)</div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button id="refresh-profiles" class="ghost">Refresh</button>
+          </div>
+          <div id="profiles-loading" class="muted" style="margin-top:8px">Loading…</div>
+          <table id="profiles-table" style="display:none">
+            <thead><tr><th>UID</th><th>Email</th><th>is_admin</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody id="profiles-body"></tbody>
+          </table>
+
+          <hr style="margin:12px 0;border:none;border-top:1px solid #eef6ff">
+
+          <h4>Create user (client)</h4>
+          <div class="muted">Creates auth user via client signUp (email verification may be required)</div>
+          <label>Email</label>
+          <input id="new-user-email" type="email" placeholder="user@example.com" />
+          <label>Password</label>
+          <input id="new-user-password" type="password" placeholder="Password" />
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button id="create-user-client">Create user (signUp)</button>
+            <button id="create-user-server" class="ghost">Create via server (admin)</button>
+          </div>
+        </section>
+      </main>
+
+      <aside>
+        <section class="card">
+          <h4>Server (privileged ops)</h4>
+          <div class="muted">This page calls a server for privileged actions (create admin, send push)</div>
+          <label>Server URL (deployed)</label>
+          <input id="server-url" type="text" placeholder="https://your-admin-server.example.com" />
+          <small class="muted">Set this to your deployed admin server. No secrets here.</small>
+          <hr style="margin:12px 0;border:none;border-top:1px solid #eef6ff">
+          <h4>Debug</h4>
+          <pre id="debug">Ready.</pre>
+        </section>
+
+        <section class="card" style="margin-top:14px">
+          <h4>How it works</h4>
+          <div class="muted" style="font-size:13px">
+            - Client uses anon key; server holds service_role and FCM credentials.<br>
+            - Use server "create-user" and "send-command" endpoints for privileged ops.<br>
+            - Devices should register fcm_token and poll for commands or receive push.
+          </div>
+        </section>
+      </aside>
+    </div>
   </div>
 
   <script type="module">
-    alert('Techip Admin script loaded')
+    // quick load check
+    alert('Techip Admin script loaded');
 
-    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-    const SUPABASE_URL = 'https://cnwerkocgdhimiwuawiv.supabase.co'
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNud2Vya29jZ2RoaW1pd3Vhd2l2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTMwMjAsImV4cCI6MjA3NzY2OTAyMH0.X0ewxmFBh2ofhIQGPgDucJk9pQJylXDoLTerxYgrouw'
+    // CONFIG — replace anon key only if you rotate it later
+    const SUPABASE_URL = 'https://cnwerkocgdhimiwuawiv.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNud2Vya29jZ2RoaW1pd3Vhd2l2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTMwMjAsImV4cCI6MjA3NzY2OTAyMH0.X0ewxmFBh2ofhIQGPgDucJk9pQJylXDoLTerxYgrouw';
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true } });
 
-    const emailInput = document.getElementById('email')
-    const passwordInput = document.getElementById('password')
-    const signInBtn = document.getElementById('signin-btn')
-    const signOutBtn = document.getElementById('signout-btn')
-    const statusEl = document.getElementById('status')
-    const adminUi = document.getElementById('admin-ui')
-    const debug = document.getElementById('debug')
+    // Elements
+    const emailInput = document.getElementById('email'), passwordInput = document.getElementById('password');
+    const signInBtn = document.getElementById('signin-btn'), signOutBtn = document.getElementById('signout-btn');
+    const statusEl = document.getElementById('status'), userInfo = document.getElementById('user-info');
+    const adminUi = document.getElementById('admin-ui');
+    const devicesLoading = document.getElementById('devices-loading'), devicesTable = document.getElementById('devices-table'), devicesBody = document.getElementById('devices-body');
+    const profilesLoading = document.getElementById('profiles-loading'), profilesTable = document.getElementById('profiles-table'), profilesBody = document.getElementById('profiles-body');
+    const deviceCreateForm = document.getElementById('device-create-form');
+    const cmdDevice = document.getElementById('cmd-device'), cmdJson = document.getElementById('cmd-json'), sendCmdBtn = document.getElementById('send-cmd'), sendCmdLocalBtn = document.getElementById('send-cmd-local');
+    const refreshDevicesBtn = document.getElementById('refresh-devices'), refreshProfilesBtn = document.getElementById('refresh-profiles');
+    const newUserEmail = document.getElementById('new-user-email'), newUserPassword = document.getElementById('new-user-password');
+    const createUserClientBtn = document.getElementById('create-user-client'), createUserServerBtn = document.getElementById('create-user-server');
+    const serverUrlInput = document.getElementById('server-url'), debugEl = document.getElementById('debug');
+    const featureListEl = document.getElementById('feature-list');
 
-    const deviceNameInput = document.getElementById('device-name')
-    const deviceModelInput = document.getElementById('device-model')
-    const deviceOwnerInput = document.getElementById('device-owner')
-    const deviceFeaturesInput = document.getElementById('device-features')
-    const createDeviceBtn = document.getElementById('create-device')
-    const devicesLoading = document.getElementById('devices-loading')
-    const devicesTable = document.getElementById('devices-table')
-    const devicesBody = document.getElementById('devices-body')
+    function log(...args){ console.log(...args); debugEl.textContent = args.map(a=> typeof a==='object' ? JSON.stringify(a,null,2) : String(a)).join(' '); }
 
-    function log(...args) {
-      console.log(...args)
-      debug.textContent = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')
+    const FEATURES = [
+      { key: 'block_play_store', label: 'Block Play Store' },
+      { key: 'disable_wifi', label: 'Disable Wi‑Fi' },
+      { key: 'disable_bluetooth', label: 'Disable Bluetooth' },
+      { key: 'block_settings', label: 'Block Settings' },
+      { key: 'force_kiosk', label: 'Force Kiosk Mode' },
+      { key: 'prevent_uninstall', label: 'Prevent Uninstall' },
+      { key: 'restrict_apps', label: 'Restrict Apps' }
+    ];
+
+    function renderFeatureToggles(){
+      featureListEl.innerHTML = '';
+      for(const f of FEATURES){
+        const wrap = document.createElement('div'); wrap.className='feature-toggle';
+        const label = document.createElement('div'); label.textContent = f.label;
+        const btn = document.createElement('button'); btn.textContent='Template'; btn.className='ghost';
+        btn.addEventListener('click', ()=> openFeatureCommand(f));
+        wrap.appendChild(label); wrap.appendChild(btn); featureListEl.appendChild(wrap);
+      }
     }
+    renderFeatureToggles();
 
+    // AUTH
     signInBtn.addEventListener('click', async () => {
-      const email = emailInput.value.trim()
-      const password = passwordInput.value
-      if (!email || !password) return alert('Enter email and password')
-      signInBtn.disabled = true
+      const email = emailInput.value.trim(), password = passwordInput.value;
+      if (!email || !password) return alert('Email and password required');
+      signInBtn.disabled = true;
       try {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-        if (error) throw error
-        log('Signed in', data)
-        const { data: { user } } = await supabase.auth.getUser()
-        await updateUI(user)
-      } catch (err) {
-        log('Sign-in failed', err)
-        alert('Sign-in failed: ' + (err.message || err))
-      } finally {
-        signInBtn.disabled = false
-      }
-    })
+        const res = await supabase.auth.signInWithPassword({ email, password });
+        log('signIn', res);
+        if (res.error) { alert('Sign-in failed: ' + res.error.message); return; }
+        const { data: { user } } = await supabase.auth.getUser();
+        await updateUI(user);
+      } catch (err) { log('signIn error', err); alert('Sign-in error'); } finally { signInBtn.disabled = false; }
+    });
 
-    signOutBtn.addEventListener('click', async () => {
-      await supabase.auth.signOut()
-      await updateUI(null)
-    })
+    signOutBtn.addEventListener('click', async () => { await supabase.auth.signOut(); await updateUI(null); });
 
-    async function updateUI(user) {
-      if (!user) {
-        statusEl.textContent = 'Not signed in'
-        adminUi.style.display = 'none'
-        signOutBtn.style.display = 'none'
+    supabase.auth.onAuthStateChange(async (ev, session) => { log('auth state', ev, session); await updateUI(session?.user ?? null); });
+
+    async function updateUI(user){
+      if (!user){
+        statusEl.textContent = 'Not signed in';
+        userInfo.textContent = 'Sign in to see admin controls';
+        adminUi.style.display = 'none';
+        signOutBtn.style.display = 'none';
       } else {
-        statusEl.textContent = `Signed in: ${user.email}`
-        adminUi.style.display = 'block'
-        signOutBtn.style.display = 'inline-block'
-        await loadDevices()
+        statusEl.textContent = `Signed in: ${user.email || user.id}`;
+        userInfo.textContent = `UID: ${user.id}`;
+        adminUi.style.display = 'block';
+        signOutBtn.style.display = 'inline-block';
+        await Promise.all([loadDevices(), loadProfiles()]);
       }
     }
 
-    async function loadDevices() {
-      devicesLoading.style.display = 'block'
-      devicesTable.style.display = 'none'
+    // DEVICES
+    async function loadDevices(){
+      devicesLoading.style.display='block'; devicesBody.innerHTML=''; devicesTable.style.display='none';
       try {
-        const { data, error } = await supabase.from('devices').select('*').order('created_at', { ascending: false }).limit(100)
-        if (error) throw error
-        renderDevices(data || [])
-      } catch (err) {
-        log('Load devices error', err)
-        devicesBody.innerHTML = '<tr><td colspan="5">Failed to load</td></tr>'
-      } finally {
-        devicesLoading.style.display = 'none'
-      }
+        const { data, error } = await supabase.from('devices').select('*').order('created_at',{ascending:false}).limit(500);
+        if (error) throw error;
+        renderDevices(data || []);
+      } catch (e) { log('load devices', e); devicesBody.innerHTML='<tr><td colspan="6">Failed to load</td></tr>'; }
+      finally { devicesLoading.style.display='none'; }
     }
 
-    function renderDevices(rows) {
-      devicesBody.innerHTML = ''
-      if (!rows.length) {
-        devicesBody.innerHTML = '<tr><td colspan="5">No devices</td></tr>'
+    function renderDevices(rows){
+      devicesBody.innerHTML = '';
+      if (!rows || !rows.length){ devicesBody.innerHTML = '<tr><td colspan="6">No devices</td></tr>'; devicesTable.style.display='table'; return; }
+      for(const r of rows){
+        const tr = document.createElement('tr');
+        const featuresStr = JSON.stringify(r.features || {});
+        tr.innerHTML = `<td>${escapeHtml(r.id)}</td><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.owner||'')}</td><td>${escapeHtml(r.model||'')}</td><td style="max-width:200px;white-space:pre-wrap">${escapeHtml(featuresStr)}</td><td class="actions"><button data-id="${r.id}" class="edit-device">Edit</button><button data-id="${r.id}" class="delete-device ghost">Delete</button></td>`;
+        devicesBody.appendChild(tr);
+      }
+      devicesTable.style.display='table';
+
+      devicesBody.querySelectorAll('.edit-device').forEach(b=>b.addEventListener('click',() => {
+        const id = b.dataset.id; const row = rows.find(x=>String(x.id)===String(id)); if(!row) return;
+        document.getElementById('device-name').value = row.name || '';
+        document.getElementById('device-owner').value = row.owner || '';
+        document.getElementById('device-model').value = row.model || '';
+        document.getElementById('device-features').value = JSON.stringify(row.features || {}, null, 2);
+        document.getElementById('device-name').focus();
+      }));
+
+      devicesBody.querySelectorAll('.delete-device').forEach(b=>b.addEventListener('click', async () => {
+        const id = b.dataset.id;
+        if (!confirm('Delete device ' + id + '?')) return;
+        try {
+          const { error } = await supabase.from('devices').delete().eq('id', id);
+          if (error) throw error;
+          log('deleted device', id); await loadDevices();
+        } catch (err) { log('delete device error', err); alert('Delete failed'); }
+      }));
+    }
+
+    // Create device (client)
+    document.getElementById('device-create-form').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const name = document.getElementById('device-name').value.trim();
+      const owner = document.getElementById('device-owner').value.trim() || null;
+      const model = document.getElementById('device-model').value.trim() || '';
+      let features = {};
+      try { features = document.getElementById('device-features').value.trim() ? JSON.parse(document.getElementById('device-features').value) : {}; } catch(e){ return alert('Invalid JSON for features'); }
+      if (!name) return alert('Device name required');
+      try {
+        const { data, error } = await supabase.from('devices').insert([{ name, owner, model, features }]).select().single();
+        if (error) throw error;
+        log('created device', data);
+        document.getElementById('device-name').value=''; document.getElementById('device-owner').value=''; document.getElementById('device-model').value=''; document.getElementById('device-features').value='';
+        await loadDevices();
+      } catch (err){ log('create device error', err); alert('Create device failed: ' + (err.message || err)); }
+    });
+
+    document.getElementById('clear-device').addEventListener('click', ()=>{ document.getElementById('device-name').value=''; document.getElementById('device-owner').value=''; document.getElementById('device-model').value=''; document.getElementById('device-features').value=''; });
+
+    // PROFILES
+    async function loadProfiles(){
+      profilesLoading.style.display='block'; profilesBody.innerHTML=''; profilesTable.style.display='none';
+      try {
+        const { data, error } = await supabase.from('profiles').select('*').order('created_at',{ascending:false}).limit(500);
+        if (error) throw error;
+        renderProfiles(data || []);
+      } catch(e){ log('load profiles', e); profilesBody.innerHTML='<tr><td colspan="5">Failed to load</td></tr>'; } finally { profilesLoading.style.display='none'; }
+    }
+
+    function renderProfiles(rows){
+      profilesBody.innerHTML = '';
+      if (!rows || !rows.length){ profilesBody.innerHTML = '<tr><td colspan="5">No profiles</td></tr>'; profilesTable.style.display='table'; return; }
+      for(const r of rows){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${escapeHtml(r.id)}</td><td>${escapeHtml(r.email||'')}</td><td>${escapeHtml(String(r.is_admin===true))}</td><td>${escapeHtml(r.created_at)}</td><td class="actions"><button data-id="${r.id}" data-admin="${r.is_admin}" class="toggle-admin">${r.is_admin ? 'Revoke' : 'Make admin'}</button></td>`;
+        profilesBody.appendChild(tr);
+      }
+      profilesTable.style.display='table';
+      profilesBody.querySelectorAll('.toggle-admin').forEach(b=>b.addEventListener('click', async ()=>{
+        const id = b.dataset.id; const current = b.dataset.admin === 'true';
+        if (!confirm(`${current ? 'Revoke admin from' : 'Grant admin to'} ${id}?`)) return;
+        try {
+          const { data, error } = await supabase.from('profiles').update({ is_admin: !current }).eq('id', id).select().single();
+          if (error) throw error;
+          log('toggled admin', data); await loadProfiles();
+        } catch (err) { log('toggle admin error', err); alert('Toggle failed'); }
+      }));
+    }
+
+    // Client-side create user (signUp)
+    createUserClientBtn.addEventListener('click', async ()=>{
+      const email = newUserEmail.value.trim(), password = newUserPassword.value || '';
+      if (!email || !password) return alert('Email and password required');
+      createUserClientBtn.disabled = true;
+      try {
+        const res = await supabase.auth.signUp({ email, password });
+        log('signUp', res);
+        if (res.error) alert('Sign-up error: ' + res.error.message);
+        else alert('User created (may require email confirmation)');
+        newUserEmail.value=''; newUserPassword.value='';
+      } catch (err) { log('create user client error', err); alert('Create user failed'); } finally { createUserClientBtn.disabled=false; }
+    });
+
+    // Server-side create user (privileged)
+    createUserServerBtn.addEventListener('click', async ()=>{
+      const url = serverUrlInput.value.trim(); if (!url) return alert('Set server URL in sidebar');
+      const email = prompt('Email for new user'); if (!email) return;
+      const password = prompt('Password for new user'); if (!password) return;
+      const is_admin = confirm('Make this user admin? OK = yes');
+      try {
+        const resp = await fetch(url + '/admin/create-user', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ email, password, is_admin }) });
+        const body = await resp.json();
+        log('server create user', body);
+        if (!resp.ok) alert('Server error: ' + (body.error || resp.statusText)); else alert('Server created user');
+      } catch (err) { log('server create user error', err); alert('Server create user failed'); }
+    });
+
+    // COMMANDS
+    sendCmdBtn.addEventListener('click', async ()=>{
+      const url = serverUrlInput.value.trim(); if (!url) return alert('Set server URL in sidebar');
+      const deviceId = cmdDevice.value.trim(); const cmdText = cmdJson.value.trim();
+      if (!deviceId || !cmdText) return alert('Device and command required');
+      let cmd; try { cmd = JSON.parse(cmdText) } catch(e){ return alert('Invalid JSON') }
+      sendCmdBtn.disabled = true;
+      try {
+        const resp = await fetch(url + '/admin/send-command', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ device_id: deviceId, command: cmd }) });
+        const body = await resp.json();
+        log('server send cmd', body);
+        if (!resp.ok) alert('Server error: ' + (body.error || resp.statusText)); else alert('Command queued/sent');
+        cmdDevice.value=''; cmdJson.value='';
+      } catch (err) { log('server send error', err); alert('Send failed') } finally { sendCmdBtn.disabled=false; }
+    });
+
+    // save command locally to DB (for testing or if server unavailable)
+    sendCmdLocalBtn.addEventListener('click', async ()=>{
+      const deviceId = cmdDevice.value.trim(); const cmdText = cmdJson.value.trim();
+      if (!deviceId || !cmdText) return alert('Device and command required');
+      let cmd; try { cmd = JSON.parse(cmdText) } catch(e){ return alert('Invalid JSON') }
+      try {
+        const { data, error } = await supabase.from('devicecommands').insert([{ deviceid: deviceId, command: cmd }]).select().single();
+        if (error) throw error;
+        log('saved command', data);
+        alert('Command saved to DB (device must poll)');
+        cmdDevice.value=''; cmdJson.value='';
+      } catch (err) { log('save cmd error', err); alert('Save failed: ' + (err.message || err)); }
+    });
+
+    function openFeatureCommand(feature){
+      const deviceId = prompt('Device ID to target for this toggle (leave blank to create a template):');
+      const fkey = feature.key;
+      const template = { action: 'set_feature', feature: fkey, value: true };
+      cmdDevice.value = deviceId || '';
+      cmdJson.value = JSON.stringify(template, null, 2);
+      window.scrollTo({ top: 400, behavior: 'smooth' });
+    }
+
+    // bind refresh buttons
+    refreshDevicesBtn.addEventListener('click', loadDevices);
+    refreshProfilesBtn.addEventListener('click', loadProfiles);
+
+    // init: read session
+    (async ()=>{
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        await updateUI(user);
+      } catch (err) { log('init error', err); }
+    })();
+
+    // util
+    function escapeHtml(s){ if (s == null) return ''; return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+  </script>
+</body>
+</html>
+`
