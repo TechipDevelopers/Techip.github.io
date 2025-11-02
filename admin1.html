@@ -194,6 +194,25 @@
       { key: 'block_whatsapp_updates_tab', label: 'Block WhatsApp Updates Tab' },
       { key: 'block_inapp_ai_chats', label: 'Block In-App AI Chats' }
     ];
+    // verbose on-page debug: paste after const supabase = createClient(...)
+(async () => {
+  const dbg = document.getElementById('debug') || document.body.appendChild(document.createElement('pre'));
+  try {
+    dbg.textContent = 'Checking signed-in user...';
+    const userRes = await supabase.auth.getUser();
+    dbg.textContent += '\n\ngetUser result:\n' + JSON.stringify(userRes, null, 2);
+
+    dbg.textContent += '\n\nChecking session...';
+    const sessionRes = await supabase.auth.getSession();
+    dbg.textContent += '\n\ngetSession result:\n' + JSON.stringify(sessionRes, null, 2);
+
+    dbg.textContent += '\n\nQuerying profiles...';
+    const profilesRes = await supabase.from('profiles').select('id,email,is_admin').limit(200);
+    dbg.textContent += '\n\nprofiles result:\n' + JSON.stringify(profilesRes, null, 2);
+  } catch (err) {
+    dbg.textContent += '\n\nEXCEPTION:\n' + (err.message || JSON.stringify(err));
+  }
+})();
 
     // State
     let profiles = [], selectedProfile = null, devices = [], selectedDevice = null, editingFeatures = {};
