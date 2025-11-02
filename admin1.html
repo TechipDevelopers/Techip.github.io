@@ -1,167 +1,51 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Techip Admin (GitHub Pages safe)</title>
-  <style>
-    :root{font-family:system-ui,Segoe UI,Roboto,Arial;}
-    body{max-width:1100px;margin:20px auto;padding:18px;}
-    header{display:flex;justify-content:space-between;align-items:center;gap:12px}
-    .card{border:1px solid #e5e7eb;padding:12px;border-radius:8px;margin-top:12px}
-    input,select,button,textarea{padding:8px;margin:6px 0;font-size:14px}
-    .hidden{display:none}
-    .muted{color:#6b7280;font-size:13px}
-    table{width:100%;border-collapse:collapse}
-    th,td{padding:8px;border-bottom:1px solid #f1f5f9;text-align:left}
-    pre#debug{background:#fafafa;border:1px solid #eee;padding:8px;max-height:220px;overflow:auto}
-  </style>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Techip Admin Connection Test</title>
+  <style>body{font-family:system-ui,Roboto,Arial;max-width:900px;margin:20px auto;padding:18px}</style>
 </head>
 <body>
-  <header>
-    <div>
-      <h1>Techip Admin</h1>
-      <div class="muted">Hosted on GitHub Pages — no service_role key here</div>
-    </div>
-    <div id="auth-block">
-      <input id="email" type="email" placeholder="admin@example.com" />
-      <input id="password" type="password" placeholder="Password" />
-      <button id="signin-btn">Sign in</button>
-      <button id="signout-btn" class="hidden">Sign out</button>
-    </div>
-  </header>
-
-  <section class="card">
-    <div id="status">Not signed in</div>
-    <div id="admin-ui" class="hidden">
-      <h3>Create privileged user (server required)</h3>
-      <div class="muted">This action requires the server that holds the Supabase service_role key.</div>
-      <input id="new-email" placeholder="newuser@example.com" />
-      <input id="new-password" placeholder="Password" />
-      <label><input id="new-is-admin" type="checkbox" /> Make admin</label>
-      <div>
-        <button id="server-create-user">Create user via server</button>
-      </div>
-
-      <hr/>
-      <h3>Send command to device (server required)</h3>
-      <input id="cmd-device" placeholder="Device ID" />
-      <textarea id="cmd-json" rows="3" placeholder='Command JSON (e.g. {"action":"set_feature","feature":"block_play_store","value":true})'></textarea>
-      <div><button id="server-send-cmd">Send Command via server</button></div>
-    </div>
-  </section>
-
-  <section class="card">
-    <h3>Devices</h3>
-    <div id="devices-loading">Loading…</div>
-    <table id="devices-table" class="hidden"><thead><tr><th>ID</th><th>Name</th><th>Owner</th><th>Status</th><th>Created</th></tr></thead><tbody id="devices-body"></tbody></table>
-  </section>
-
-  <section class="card">
-    <h3>Profiles</h3>
-    <div id="profiles-loading">Loading…</div>
-    <table id="profiles-table" class="hidden"><thead><tr><th>UID</th><th>Email</th><th>is_admin</th><th>Created</th></tr></thead><tbody id="profiles-body"></tbody></table>
-  </section>
-
-  <section class="card">
-    <h3>Debug</h3>
-    <pre id="debug">Ready</pre>
-  </section>
+  <h1>Techip Admin — Connection Test</h1>
+  <p id="status">Starting…</p>
+  <pre id="out" style="background:#f7f7f7;padding:12px;border:1px solid #eee;white-space:pre-wrap;"></pre>
 
   <script type="module">
-    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
-
-    // CONFIG
+    // CONFIG: set your project values here
     const SUPABASE_URL = 'https://cnwerkocgdhimiwuawiv.supabase.co'
-    const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY_HERE' // replace with your anon/public key from Supabase dashboard
-    const SERVER_URL = 'https://your-admin-server.example.com' // <-- deploy the server there (see server code). Do not place secrets here.
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNud2Vya29jZ2RoaW1pd3Vhd2l2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTMwMjAsImV4cCI6MjA3NzY2OTAyMH0.X0ewxmFBh2ofhIQGPgDucJk9pQJylXDoLTerxYgrouw' // ← paste your anon/public key here
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true } })
+    const out = document.getElementById('out')
+    const statusEl = document.getElementById('status')
+    function log(...args){ console.log(...args); out.textContent += args.map(a => (typeof a === 'object' ? JSON.stringify(a,null,2) : String(a))).join(' ') + '\\n' }
 
-    // UI elements
-    const emailInput = document.getElementById('email'), passwordInput = document.getElementById('password')
-    const signInBtn = document.getElementById('signin-btn'), signOutBtn = document.getElementById('signout-btn')
-    const statusEl = document.getElementById('status'), adminUi = document.getElementById('admin-ui')
-    const devicesBody = document.getElementById('devices-body'), devicesTable = document.getElementById('devices-table'), devicesLoading = document.getElementById('devices-loading')
-    const profilesBody = document.getElementById('profiles-body'), profilesTable = document.getElementById('profiles-table'), profilesLoading = document.getElementById('profiles-loading')
-    const debug = document.getElementById('debug')
+    // visible early check
+    try { alert('Test script loaded — check console and the page for results') } catch (e) {}
 
-    const newEmail = document.getElementById('new-email'), newPassword = document.getElementById('new-password'), newIsAdmin = document.getElementById('new-is-admin')
-    const serverCreateBtn = document.getElementById('server-create-user'), cmdDevice = document.getElementById('cmd-device'), cmdJson = document.getElementById('cmd-json'), serverSendCmdBtn = document.getElementById('server-send-cmd')
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false } })
 
-    function log(...args){ console.log(...args); debug.textContent = args.map(a=> typeof a==='object' ? JSON.stringify(a,null,2) : String(a)).join(' ') }
-
-    // Auth
-    signInBtn.addEventListener('click', async () => {
-      const email = emailInput.value.trim(), password = passwordInput.value
-      if (!email || !password) return alert('Enter email and password')
-      signInBtn.disabled = true
+    ;(async function testConnection(){
+      statusEl.textContent = 'Testing connection to Supabase…'
       try {
-        const res = await supabase.auth.signInWithPassword({ email, password })
-        log('signIn', res)
-        if (res.error) { alert('Sign-in failed: ' + res.error.message); return }
-        const { data: { user } } = await supabase.auth.getUser()
-        await updateUI(user)
-      } catch (err) { log('Sign-in error', err); alert('Sign-in error') } finally { signInBtn.disabled = false }
-    })
-
-    signOutBtn.addEventListener('click', async ()=>{ await supabase.auth.signOut(); await updateUI(null) })
-
-    supabase.auth.onAuthStateChange(async (event, session) => { log('Auth state', event, session); await updateUI(session?.user ?? null) })
-
-    async function updateUI(user){
-      if (!user){ statusEl.textContent = 'Not signed in'; adminUi.classList.add('hidden'); signOutBtn.classList.add('hidden'); loadDevicesHidden() }
-      else { statusEl.textContent = `Signed in: ${user.email}`; adminUi.classList.remove('hidden'); signOutBtn.classList.remove('hidden'); await Promise.all([loadDevices(), loadProfiles()]) }
-    }
-
-    // Load devices & profiles
-    async function loadDevices(){
-      devicesLoading.style.display='block'; devicesTable.classList.add('hidden')
-      try { const { data, error } = await supabase.from('devices').select('*').order('created_at',{ascending:false}).limit(200); if (error) throw error; renderDevices(data||[]) } catch(e){ log('load devices', e); devicesBody.innerHTML='<tr><td colspan="5">Failed to load</td></tr>' } finally { devicesLoading.style.display='none' }
-    }
-    function loadDevicesHidden(){ devicesBody.innerHTML=''; devicesTable.classList.add('hidden') }
-
-    function renderDevices(rows){
-      devicesBody.innerHTML=''; if(!rows.length){ devicesBody.innerHTML='<tr><td colspan="5">No devices</td></tr>'; devicesTable.classList.remove('hidden'); return }
-      for(const r of rows){ const tr=document.createElement('tr'); tr.innerHTML=`<td>${escapeHtml(r.id)}</td><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.owner||'')}</td><td>${escapeHtml(r.status)}</td><td>${escapeHtml(r.created_at)}</td>`; devicesBody.appendChild(tr) }
-      devicesTable.classList.remove('hidden')
-    }
-
-    async function loadProfiles(){
-      profilesLoading.style.display='block'; profilesTable.classList.add('hidden')
-      try { const { data, error } = await supabase.from('profiles').select('*').order('created_at',{ascending:false}).limit(200); if (error) throw error; renderProfiles(data||[]) } catch(e){ log('load profiles', e); profilesBody.innerHTML='<tr><td colspan="4">Failed to load</td></tr>' } finally { profilesLoading.style.display='none' }
-    }
-    function renderProfiles(rows){ profilesBody.innerHTML=''; if(!rows.length){ profilesBody.innerHTML='<tr><td colspan="4">No profiles</td></tr>'; profilesTable.classList.remove('hidden'); return } for(const r of rows){ const tr=document.createElement('tr'); tr.innerHTML=`<td>${escapeHtml(r.id)}</td><td>${escapeHtml(r.email)}</td><td>${escapeHtml(String(r.is_admin===true))}</td><td>${escapeHtml(r.created_at)}</td>`; profilesBody.appendChild(tr) } profilesTable.classList.remove('hidden') }
-
-    // SERVER calls (privileged ops). SERVER_URL must be your deployed admin server endpoint.
-    async function serverCreateUser(email, password, is_admin){
-      if (!SERVER_URL) return alert('Server URL not configured. Deploy your admin server and set SERVER_URL in the page.')
-      // This request must include authentication on the server side (API key or better).
-      const resp = await fetch(SERVER_URL + '/admin/create-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, is_admin })
-      })
-      return resp.json()
-    }
-
-    async function serverSendCommand(device_id, command){
-      if (!SERVER_URL) return alert('Server URL not configured. Deploy your admin server and set SERVER_URL in the page.')
-      const resp = await fetch(SERVER_URL + '/admin/send-command', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device_id, command })
-      })
-      return resp.json()
-    }
-
-    serverCreateBtn.addEventListener('click', async () => {
-      const email = newEmail.value.trim(), password = newPassword.value, is_admin = newIsAdmin.checked
-      if (!email || !password) return alert('Email and password required')
-      serverCreateBtn.disabled = true
-      try {
-        const body = await serverCreateUser(email, password, is_admin)
-        log('server create user', body)
-        if (body?.error) alert('Server error: ' + (body.error))
-        else alert('Server created user')
-        newEmail.value=''; newPassword.value='
+        log('Trying to select 1 row from public.devices')
+        const { data, error } = await supabase.from('devices').select('id, name, owner, created_at').limit(1)
+        if (error) {
+          log('ERROR', error)
+          statusEl.textContent = 'Connection FAILED: see details below'
+          alert('Connection test failed: ' + (error.message || JSON.stringify(error)))
+          return
+        }
+        log('OK — query result:', data)
+        statusEl.textContent = 'Connection OK — received data. See console/out below.'
+        alert('Supabase connection OK')
+      } catch (e) {
+        log('EXCEPTION', e)
+        statusEl.textContent = 'Exception occurred — see console/out below'
+        alert('Exception during connection test (see console)')
+      }
+    })()
+  </script>
+</body>
+</html>
