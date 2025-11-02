@@ -3,170 +3,97 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Techip Admin</title>
+  <title>Techip Admin — Users → Devices → Features</title>
   <style>
-    :root{
-      --brand:#0b3d91; --accent:#ffb703; --muted:#6b7280; --bg:#f7f9fc;
-      font-family:Inter,system-ui,Segoe UI,Roboto,Arial;
-    }
-    body{background:var(--bg);margin:0;padding:28px;color:#0b1a2b}
-    header{background:linear-gradient(90deg,var(--brand),#05408b);color:#fff;padding:18px;border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:16px}
-    header h1{margin:0;font-size:20px}
+    :root{--brand:#0b3d91;--muted:#6b7280;--bg:#f7f9fc}
+    body{font-family:Inter,system-ui,Roboto,Arial;margin:0;background:var(--bg);color:#0b1a2b;padding:20px}
+    header{background:linear-gradient(90deg,var(--brand),#05408b);color:#fff;padding:14px;border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+    header h1{margin:0;font-size:18px}
+    .row{display:flex;gap:12px}
     .container{max-width:1100px;margin:18px auto}
-    .grid{display:grid;grid-template-columns:1fr 420px;gap:18px;align-items:start}
-    .card{background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 2px rgba(10,20,40,0.04);border:1px solid #e6eef8}
-    input,textarea,select{width:100%;padding:10px;border-radius:8px;border:1px solid #e6eef8;background:#fbfdff;font-size:14px;margin-top:6px}
-    button{background:var(--brand);color:#fff;border:0;padding:9px 12px;border-radius:8px;cursor:pointer}
-    button.ghost{background:transparent;border:1px solid #e6eef8;color:#0b1a2b}
+    .col{background:#fff;border-radius:10px;padding:14px;border:1px solid #e6eef8}
+    .left{width:300px}
+    .mid{flex:1;min-width:320px}
+    .right{width:340px}
     .muted{color:var(--muted);font-size:13px}
-    table{width:100%;border-collapse:collapse;margin-top:10px}
-    th,td{padding:8px;border-bottom:1px solid #f1f5f9;text-align:left;font-size:13px}
-    pre#debug{background:#0b1a2b;color:#fff;padding:10px;border-radius:8px;max-height:220px;overflow:auto}
-    .feature-toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px dashed #f2f6fb}
-    .feature-toggle:last-child{border-bottom:0}
-    @media(max-width:980px){ .grid{grid-template-columns:1fr} }
+    button{background:var(--brand);color:#fff;border:0;padding:8px 10px;border-radius:8px;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid #e6eef8;color:#0b1a2b}
+    ul{list-style:none;padding:0;margin:0}
+    li{padding:8px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center}
+    li.clickable{cursor:pointer}
+    .selected{background:#eef6ff}
+    .feature{display:flex;justify-content:space-between;align-items:center;padding:8px;border-bottom:1px solid #f6f9fc}
+    .switch{display:inline-flex;align-items:center;gap:8px}
+    input[type="checkbox"]{width:18px;height:18px}
+    pre#debug{background:#0b1a2b;color:#fff;padding:8px;border-radius:8px;max-height:200px;overflow:auto}
+    @media(max-width:980px){ .row{flex-direction:column} .left,.right{width:100%} }
   </style>
 </head>
 <body>
   <header>
     <div>
       <h1>Techip Admin</h1>
-      <div class="muted">Manage devices, profiles, and remotely toggle features</div>
+      <div class="muted">Users → Devices → Feature switches</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
-      <input id="email" type="email" placeholder="admin@example.com" style="width:220px;padding:8px;border-radius:8px;border:none" />
-      <input id="password" type="password" placeholder="Password" style="width:160px;padding:8px;border-radius:8px;border:none" />
+      <input id="email" type="email" placeholder="admin@example.com" style="padding:8px;border-radius:8px;border:none" />
+      <input id="password" type="password" placeholder="Password" style="padding:8px;border-radius:8px;border:none" />
       <button id="signin-btn">Sign in</button>
       <button id="signout-btn" class="ghost" style="display:none">Sign out</button>
     </div>
   </header>
 
   <div class="container">
-    <div class="grid">
-      <main>
-        <section class="card">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <div>
-              <strong id="status">Not signed in</strong>
-              <div class="muted" id="user-info">Sign in to see admin controls</div>
-            </div>
-            <div class="muted">Project: cnwerkocgdhimiwuawiv</div>
-          </div>
+    <div class="row">
+      <!-- Users column -->
+      <div class="col left">
+        <strong>Users</strong>
+        <div class="muted" style="margin-bottom:8px">Click a user to see their devices</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <button id="refresh-profiles" class="ghost">Refresh</button>
+          <div id="profiles-loading" class="muted" style="align-self:center">Idle</div>
+        </div>
+        <ul id="profiles-list" style="margin-top:8px"></ul>
+      </div>
 
-          <hr style="margin:12px 0;border:none;border-top:1px solid #eef6ff">
+      <!-- Devices column -->
+      <div class="col mid">
+        <strong id="devices-title">Devices</strong>
+        <div class="muted" id="devices-sub">Select a user to list devices</div>
+        <div style="display:flex;gap:8px;margin:8px 0">
+          <button id="refresh-devices" class="ghost">Refresh devices</button>
+          <button id="create-device-btn" class="ghost">Create device</button>
+          <div style="flex:1"></div>
+          <div id="devices-loading" class="muted">Idle</div>
+        </div>
+        <table id="devices-table" style="width:100%;border-collapse:collapse;display:none">
+          <thead><tr style="text-align:left"><th>ID</th><th>Name</th><th>Model</th><th>Features</th></tr></thead>
+          <tbody id="devices-body"></tbody>
+        </table>
+        <div id="no-devices" class="muted" style="margin-top:8px;display:none">No devices</div>
+      </div>
 
-          <div id="admin-ui" style="display:none">
-            <h3>Devices & Commands</h3>
-            <div class="muted">Create devices, view list, and send commands</div>
-
-            <form id="device-create-form" style="margin-top:10px">
-              <label>Device name</label>
-              <input id="device-name" type="text" placeholder="Work phone" />
-              <label>Owner UID (optional)</label>
-              <input id="device-owner" type="text" placeholder="user-uid" />
-              <label>Model</label>
-              <input id="device-model" type="text" placeholder="Pixel 6a" />
-              <label>Initial features (JSON)</label>
-              <textarea id="device-features" rows="3" placeholder='{"block_play_store":false}'></textarea>
-              <div style="display:flex;gap:8px;margin-top:10px">
-                <button id="create-device" type="submit">Create device</button>
-                <button id="clear-device" type="button" class="ghost">Clear</button>
-              </div>
-            </form>
-
-            <hr style="margin:12px 0;border:none;border-top:1px solid #eef6ff">
-
-            <h4>Devices List</h4>
-            <div class="muted">Realtime list (if enabled) or refresh below</div>
-            <div style="display:flex;gap:8px;margin-top:8px">
-              <button id="refresh-devices" class="ghost">Refresh</button>
-              <button id="bulk-command" class="ghost">Send bulk command</button>
-            </div>
-            <div id="devices-loading" class="muted" style="margin-top:8px">Loading…</div>
-            <table id="devices-table" style="display:none">
-              <thead><tr><th>ID</th><th>Name</th><th>Owner</th><th>Model</th><th>Features</th><th>Actions</th></tr></thead>
-              <tbody id="devices-body"></tbody>
-            </table>
-
-            <hr style="margin:12px 0;border:none;border-top:1px solid #eef6ff">
-
-            <h4>Command Console</h4>
-            <div class="muted">Send a JSON command to a device (server will queue and push)</div>
-            <label>Device ID</label>
-            <input id="cmd-device" type="text" placeholder="device id" />
-            <label>Command JSON</label>
-            <textarea id="cmd-json" rows="3" placeholder='{"action":"set_feature","feature":"block_play_store","value":true}'></textarea>
-            <div style="margin-top:8px;display:flex;gap:8px">
-              <button id="send-cmd">Send Command (via server)</button>
-              <button id="send-cmd-local" class="ghost">Save command to DB (client)</button>
-            </div>
-
-            <hr style="margin:12px 0;border:none;border-top:1px solid #eef6ff">
-
-            <h4>Feature Quick Toggles</h4>
-            <div class="muted">Quick toggles create a command that enables/disables a feature on a device</div>
-            <div id="feature-list" style="margin-top:8px"></div>
-          </div>
-        </section>
-
-        <section class="card" style="margin-top:14px">
-          <h3>Profiles</h3>
-          <div class="muted">View profiles and toggle admin (if allowed)</div>
-          <div style="display:flex;gap:8px;margin-top:8px">
-            <button id="refresh-profiles" class="ghost">Refresh</button>
-          </div>
-          <div id="profiles-loading" class="muted" style="margin-top:8px">Loading…</div>
-          <table id="profiles-table" style="display:none">
-            <thead><tr><th>UID</th><th>Email</th><th>is_admin</th><th>Created</th><th>Actions</th></tr></thead>
-            <tbody id="profiles-body"></tbody>
-          </table>
-
-          <hr style="margin:12px 0;border:none;border-top:1px solid #eef6ff">
-
-          <h4>Create user (client)</h4>
-          <div class="muted">Creates auth user via client signUp (email verification may be required)</div>
-          <label>Email</label>
-          <input id="new-user-email" type="email" placeholder="user@example.com" />
-          <label>Password</label>
-          <input id="new-user-password" type="password" placeholder="Password" />
-          <div style="display:flex;gap:8px;margin-top:8px">
-            <button id="create-user-client">Create user (signUp)</button>
-            <button id="create-user-server" class="ghost">Create via server (admin)</button>
-          </div>
-        </section>
-      </main>
-
-      <aside>
-        <section class="card">
-          <h4>Server (privileged ops)</h4>
-          <div class="muted">This page calls a server for privileged actions (create admin, send push)</div>
-          <label>Server URL (deployed)</label>
-          <input id="server-url" type="text" placeholder="https://your-admin-server.example.com" />
-          <small class="muted">Set this to your deployed admin server. No secrets here.</small>
-          <hr style="margin:12px 0;border:none;border-top:1px solid #eef6ff">
-          <h4>Debug</h4>
-          <pre id="debug">Ready.</pre>
-        </section>
-
-        <section class="card" style="margin-top:14px">
-          <h4>How it works</h4>
-          <div class="muted" style="font-size:13px">
-            - Client uses anon key; server holds service_role and FCM credentials.<br>
-            - Use server "create-user" and "send-command" endpoints for privileged ops.<br>
-            - Devices should register fcm_token and poll for commands or receive push.
-          </div>
-        </section>
-      </aside>
+      <!-- Features column -->
+      <div class="col right">
+        <strong id="device-title">Device Features</strong>
+        <div class="muted" id="device-sub">Select a device to edit features</div>
+        <div id="selected-device-info" style="margin:10px 0" class="muted"></div>
+        <div id="features-list" style="margin-top:8px"></div>
+        <div style="margin-top:12px">
+          <button id="save-features" style="display:none">Save features</button>
+        </div>
+        <hr style="margin:12px 0;border:none;border-top:1px solid #eef6ff">
+        <div class="muted">Debug</div>
+        <pre id="debug">Ready.</pre>
+      </div>
     </div>
   </div>
 
   <script type="module">
-    // quick load check
     alert('Techip Admin script loaded');
 
     import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-    // CONFIG — replace anon key only if you rotate it later
     const SUPABASE_URL = 'https://cnwerkocgdhimiwuawiv.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNud2Vya29jZ2RoaW1pd3Vhd2l2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTMwMjAsImV4cCI6MjA3NzY2OTAyMH0.X0ewxmFBh2ofhIQGPgDucJk9pQJylXDoLTerxYgrouw';
 
@@ -175,44 +102,42 @@
     // Elements
     const emailInput = document.getElementById('email'), passwordInput = document.getElementById('password');
     const signInBtn = document.getElementById('signin-btn'), signOutBtn = document.getElementById('signout-btn');
-    const statusEl = document.getElementById('status'), userInfo = document.getElementById('user-info');
-    const adminUi = document.getElementById('admin-ui');
-    const devicesLoading = document.getElementById('devices-loading'), devicesTable = document.getElementById('devices-table'), devicesBody = document.getElementById('devices-body');
-    const profilesLoading = document.getElementById('profiles-loading'), profilesTable = document.getElementById('profiles-table'), profilesBody = document.getElementById('profiles-body');
-    const deviceCreateForm = document.getElementById('device-create-form');
-    const cmdDevice = document.getElementById('cmd-device'), cmdJson = document.getElementById('cmd-json'), sendCmdBtn = document.getElementById('send-cmd'), sendCmdLocalBtn = document.getElementById('send-cmd-local');
-    const refreshDevicesBtn = document.getElementById('refresh-devices'), refreshProfilesBtn = document.getElementById('refresh-profiles');
-    const newUserEmail = document.getElementById('new-user-email'), newUserPassword = document.getElementById('new-user-password');
-    const createUserClientBtn = document.getElementById('create-user-client'), createUserServerBtn = document.getElementById('create-user-server');
-    const serverUrlInput = document.getElementById('server-url'), debugEl = document.getElementById('debug');
-    const featureListEl = document.getElementById('feature-list');
+    const profilesList = document.getElementById('profiles-list'), refreshProfilesBtn = document.getElementById('refresh-profiles'), profilesLoading = document.getElementById('profiles-loading');
+    const devicesTitle = document.getElementById('devices-title'), devicesSub = document.getElementById('devices-sub'), refreshDevicesBtn = document.getElementById('refresh-devices'), devicesLoading = document.getElementById('devices-loading');
+    const devicesTable = document.getElementById('devices-table'), devicesBody = document.getElementById('devices-body'), noDevices = document.getElementById('no-devices');
+    const deviceTitle = document.getElementById('device-title'), deviceSub = document.getElementById('device-sub'), selectedDeviceInfo = document.getElementById('selected-device-info');
+    const featuresList = document.getElementById('features-list'), saveFeaturesBtn = document.getElementById('save-features');
+    const debugEl = document.getElementById('debug');
 
-    function log(...args){ console.log(...args); debugEl.textContent = args.map(a=> typeof a==='object' ? JSON.stringify(a,null,2) : String(a)).join(' '); }
+    function log(...args){ console.log(...args); debugEl.textContent = args.map(a=> typeof a==='object'? JSON.stringify(a,null,2): String(a)).join(' '); }
 
-    const FEATURES = [
-      { key: 'block_play_store', label: 'Block Play Store' },
-      { key: 'disable_wifi', label: 'Disable Wi‑Fi' },
+    // Features mapping (keys used in DB JSON)
+    const FEATURE_MAP = [
+      { key: 'block_play_store', label: 'Block Google Play Store' },
+      { key: 'block_developer_options', label: 'Block Developer Options' },
+      { key: 'disable_app_settings', label: 'Disable App Settings Control' },
+      { key: 'disable_apk_installation', label: 'Disable APK Installation' },
       { key: 'disable_bluetooth', label: 'Disable Bluetooth' },
-      { key: 'block_settings', label: 'Block Settings' },
-      { key: 'force_kiosk', label: 'Force Kiosk Mode' },
-      { key: 'prevent_uninstall', label: 'Prevent Uninstall' },
-      { key: 'restrict_apps', label: 'Restrict Apps' }
+      { key: 'disable_tethering', label: 'Disable Tethering & Hotspot' },
+      { key: 'disable_sms_mms', label: 'Disable SMS/MMS' },
+      { key: 'enable_firewall', label: 'Enable Firewall (VPN)' },
+      { key: 'enable_private_dns', label: 'Enable Private DNS' },
+      { key: 'disable_all_network', label: 'Disable All Network Access' },
+      { key: 'disallow_adding_users', label: 'Disallow Adding Users' },
+      { key: 'disable_factory_reset', label: 'Disable Factory Reset' },
+      { key: 'block_whatsapp_updates_tab', label: 'Block WhatsApp Updates Tab' },
+      { key: 'block_inapp_ai_chats', label: 'Block In-App AI Chats' }
     ];
 
-    function renderFeatureToggles(){
-      featureListEl.innerHTML = '';
-      for(const f of FEATURES){
-        const wrap = document.createElement('div'); wrap.className='feature-toggle';
-        const label = document.createElement('div'); label.textContent = f.label;
-        const btn = document.createElement('button'); btn.textContent='Template'; btn.className='ghost';
-        btn.addEventListener('click', ()=> openFeatureCommand(f));
-        wrap.appendChild(label); wrap.appendChild(btn); featureListEl.appendChild(wrap);
-      }
-    }
-    renderFeatureToggles();
+    // state
+    let profiles = []; // loaded profiles
+    let selectedProfile = null; // profile object
+    let devices = []; // devices for selected profile
+    let selectedDevice = null; // device object (with features)
+    let editingFeatures = {}; // local copy of features for toggling
 
-    // AUTH
-    signInBtn.addEventListener('click', async () => {
+    // AUTH flows
+    signInBtn.addEventListener('click', async ()=>{
       const email = emailInput.value.trim(), password = passwordInput.value;
       if (!email || !password) return alert('Email and password required');
       signInBtn.disabled = true;
@@ -221,203 +146,200 @@
         log('signIn', res);
         if (res.error) { alert('Sign-in failed: ' + res.error.message); return; }
         const { data: { user } } = await supabase.auth.getUser();
-        await updateUI(user);
-      } catch (err) { log('signIn error', err); alert('Sign-in error'); } finally { signInBtn.disabled = false; }
+        await onAuth(user);
+      } catch (err) { log('signIn err', err); alert('Sign-in error'); } finally { signInBtn.disabled = false; }
     });
 
-    signOutBtn.addEventListener('click', async () => { await supabase.auth.signOut(); await updateUI(null); });
+    signOutBtn.addEventListener('click', async ()=>{
+      await supabase.auth.signOut(); await onAuth(null);
+    });
 
-    supabase.auth.onAuthStateChange(async (ev, session) => { log('auth state', ev, session); await updateUI(session?.user ?? null); });
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      log('auth event', event, session);
+      await onAuth(session?.user ?? null);
+    });
 
-    async function updateUI(user){
+    async function onAuth(user){
       if (!user){
-        statusEl.textContent = 'Not signed in';
-        userInfo.textContent = 'Sign in to see admin controls';
-        adminUi.style.display = 'none';
         signOutBtn.style.display = 'none';
-      } else {
-        statusEl.textContent = `Signed in: ${user.email || user.id}`;
-        userInfo.textContent = `UID: ${user.id}`;
-        adminUi.style.display = 'block';
-        signOutBtn.style.display = 'inline-block';
-        await Promise.all([loadDevices(), loadProfiles()]);
+        signInBtn.style.display = 'inline-block';
+        profilesList.innerHTML = '';
+        devicesBody.innerHTML = '';
+        featuresList.innerHTML = '';
+        selectedDevice = null; selectedProfile = null;
+        devicesTable.style.display = 'none'; noDevices.style.display = 'none';
+        devicesSub.textContent = 'Select a user to list devices';
+        deviceSub.textContent = 'Select a device to edit features';
+        log('Signed out');
+        return;
       }
+      signOutBtn.style.display = 'inline-block';
+      signInBtn.style.display = 'none';
+      log('Signed in as', user.email || user.id);
+      await loadProfiles();
     }
 
-    // DEVICES
-    async function loadDevices(){
-      devicesLoading.style.display='block'; devicesBody.innerHTML=''; devicesTable.style.display='none';
-      try {
-        const { data, error } = await supabase.from('devices').select('*').order('created_at',{ascending:false}).limit(500);
-        if (error) throw error;
-        renderDevices(data || []);
-      } catch (e) { log('load devices', e); devicesBody.innerHTML='<tr><td colspan="6">Failed to load</td></tr>'; }
-      finally { devicesLoading.style.display='none'; }
-    }
-
-    function renderDevices(rows){
-      devicesBody.innerHTML = '';
-      if (!rows || !rows.length){ devicesBody.innerHTML = '<tr><td colspan="6">No devices</td></tr>'; devicesTable.style.display='table'; return; }
-      for(const r of rows){
-        const tr = document.createElement('tr');
-        const featuresStr = JSON.stringify(r.features || {});
-        tr.innerHTML = `<td>${escapeHtml(r.id)}</td><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.owner||'')}</td><td>${escapeHtml(r.model||'')}</td><td style="max-width:200px;white-space:pre-wrap">${escapeHtml(featuresStr)}</td><td class="actions"><button data-id="${r.id}" class="edit-device">Edit</button><button data-id="${r.id}" class="delete-device ghost">Delete</button></td>`;
-        devicesBody.appendChild(tr);
-      }
-      devicesTable.style.display='table';
-
-      devicesBody.querySelectorAll('.edit-device').forEach(b=>b.addEventListener('click',() => {
-        const id = b.dataset.id; const row = rows.find(x=>String(x.id)===String(id)); if(!row) return;
-        document.getElementById('device-name').value = row.name || '';
-        document.getElementById('device-owner').value = row.owner || '';
-        document.getElementById('device-model').value = row.model || '';
-        document.getElementById('device-features').value = JSON.stringify(row.features || {}, null, 2);
-        document.getElementById('device-name').focus();
-      }));
-
-      devicesBody.querySelectorAll('.delete-device').forEach(b=>b.addEventListener('click', async () => {
-        const id = b.dataset.id;
-        if (!confirm('Delete device ' + id + '?')) return;
-        try {
-          const { error } = await supabase.from('devices').delete().eq('id', id);
-          if (error) throw error;
-          log('deleted device', id); await loadDevices();
-        } catch (err) { log('delete device error', err); alert('Delete failed'); }
-      }));
-    }
-
-    // Create device (client)
-    document.getElementById('device-create-form').addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      const name = document.getElementById('device-name').value.trim();
-      const owner = document.getElementById('device-owner').value.trim() || null;
-      const model = document.getElementById('device-model').value.trim() || '';
-      let features = {};
-      try { features = document.getElementById('device-features').value.trim() ? JSON.parse(document.getElementById('device-features').value) : {}; } catch(e){ return alert('Invalid JSON for features'); }
-      if (!name) return alert('Device name required');
-      try {
-        const { data, error } = await supabase.from('devices').insert([{ name, owner, model, features }]).select().single();
-        if (error) throw error;
-        log('created device', data);
-        document.getElementById('device-name').value=''; document.getElementById('device-owner').value=''; document.getElementById('device-model').value=''; document.getElementById('device-features').value='';
-        await loadDevices();
-      } catch (err){ log('create device error', err); alert('Create device failed: ' + (err.message || err)); }
-    });
-
-    document.getElementById('clear-device').addEventListener('click', ()=>{ document.getElementById('device-name').value=''; document.getElementById('device-owner').value=''; document.getElementById('device-model').value=''; document.getElementById('device-features').value=''; });
-
-    // PROFILES
-    async function loadProfiles(){
-      profilesLoading.style.display='block'; profilesBody.innerHTML=''; profilesTable.style.display='none';
-      try {
-        const { data, error } = await supabase.from('profiles').select('*').order('created_at',{ascending:false}).limit(500);
-        if (error) throw error;
-        renderProfiles(data || []);
-      } catch(e){ log('load profiles', e); profilesBody.innerHTML='<tr><td colspan="5">Failed to load</td></tr>'; } finally { profilesLoading.style.display='none'; }
-    }
-
-    function renderProfiles(rows){
-      profilesBody.innerHTML = '';
-      if (!rows || !rows.length){ profilesBody.innerHTML = '<tr><td colspan="5">No profiles</td></tr>'; profilesTable.style.display='table'; return; }
-      for(const r of rows){
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${escapeHtml(r.id)}</td><td>${escapeHtml(r.email||'')}</td><td>${escapeHtml(String(r.is_admin===true))}</td><td>${escapeHtml(r.created_at)}</td><td class="actions"><button data-id="${r.id}" data-admin="${r.is_admin}" class="toggle-admin">${r.is_admin ? 'Revoke' : 'Make admin'}</button></td>`;
-        profilesBody.appendChild(tr);
-      }
-      profilesTable.style.display='table';
-      profilesBody.querySelectorAll('.toggle-admin').forEach(b=>b.addEventListener('click', async ()=>{
-        const id = b.dataset.id; const current = b.dataset.admin === 'true';
-        if (!confirm(`${current ? 'Revoke admin from' : 'Grant admin to'} ${id}?`)) return;
-        try {
-          const { data, error } = await supabase.from('profiles').update({ is_admin: !current }).eq('id', id).select().single();
-          if (error) throw error;
-          log('toggled admin', data); await loadProfiles();
-        } catch (err) { log('toggle admin error', err); alert('Toggle failed'); }
-      }));
-    }
-
-    // Client-side create user (signUp)
-    createUserClientBtn.addEventListener('click', async ()=>{
-      const email = newUserEmail.value.trim(), password = newUserPassword.value || '';
-      if (!email || !password) return alert('Email and password required');
-      createUserClientBtn.disabled = true;
-      try {
-        const res = await supabase.auth.signUp({ email, password });
-        log('signUp', res);
-        if (res.error) alert('Sign-up error: ' + res.error.message);
-        else alert('User created (may require email confirmation)');
-        newUserEmail.value=''; newUserPassword.value='';
-      } catch (err) { log('create user client error', err); alert('Create user failed'); } finally { createUserClientBtn.disabled=false; }
-    });
-
-    // Server-side create user (privileged)
-    createUserServerBtn.addEventListener('click', async ()=>{
-      const url = serverUrlInput.value.trim(); if (!url) return alert('Set server URL in sidebar');
-      const email = prompt('Email for new user'); if (!email) return;
-      const password = prompt('Password for new user'); if (!password) return;
-      const is_admin = confirm('Make this user admin? OK = yes');
-      try {
-        const resp = await fetch(url + '/admin/create-user', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ email, password, is_admin }) });
-        const body = await resp.json();
-        log('server create user', body);
-        if (!resp.ok) alert('Server error: ' + (body.error || resp.statusText)); else alert('Server created user');
-      } catch (err) { log('server create user error', err); alert('Server create user failed'); }
-    });
-
-    // COMMANDS
-    sendCmdBtn.addEventListener('click', async ()=>{
-      const url = serverUrlInput.value.trim(); if (!url) return alert('Set server URL in sidebar');
-      const deviceId = cmdDevice.value.trim(); const cmdText = cmdJson.value.trim();
-      if (!deviceId || !cmdText) return alert('Device and command required');
-      let cmd; try { cmd = JSON.parse(cmdText) } catch(e){ return alert('Invalid JSON') }
-      sendCmdBtn.disabled = true;
-      try {
-        const resp = await fetch(url + '/admin/send-command', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ device_id: deviceId, command: cmd }) });
-        const body = await resp.json();
-        log('server send cmd', body);
-        if (!resp.ok) alert('Server error: ' + (body.error || resp.statusText)); else alert('Command queued/sent');
-        cmdDevice.value=''; cmdJson.value='';
-      } catch (err) { log('server send error', err); alert('Send failed') } finally { sendCmdBtn.disabled=false; }
-    });
-
-    // save command locally to DB (for testing or if server unavailable)
-    sendCmdLocalBtn.addEventListener('click', async ()=>{
-      const deviceId = cmdDevice.value.trim(); const cmdText = cmdJson.value.trim();
-      if (!deviceId || !cmdText) return alert('Device and command required');
-      let cmd; try { cmd = JSON.parse(cmdText) } catch(e){ return alert('Invalid JSON') }
-      try {
-        const { data, error } = await supabase.from('devicecommands').insert([{ deviceid: deviceId, command: cmd }]).select().single();
-        if (error) throw error;
-        log('saved command', data);
-        alert('Command saved to DB (device must poll)');
-        cmdDevice.value=''; cmdJson.value='';
-      } catch (err) { log('save cmd error', err); alert('Save failed: ' + (err.message || err)); }
-    });
-
-    function openFeatureCommand(feature){
-      const deviceId = prompt('Device ID to target for this toggle (leave blank to create a template):');
-      const fkey = feature.key;
-      const template = { action: 'set_feature', feature: fkey, value: true };
-      cmdDevice.value = deviceId || '';
-      cmdJson.value = JSON.stringify(template, null, 2);
-      window.scrollTo({ top: 400, behavior: 'smooth' });
-    }
-
-    // bind refresh buttons
-    refreshDevicesBtn.addEventListener('click', loadDevices);
+    // Load profiles (users)
     refreshProfilesBtn.addEventListener('click', loadProfiles);
 
-    // init: read session
+    async function loadProfiles(){
+      profilesLoading.textContent = 'Loading…';
+      profilesList.innerHTML = '';
+      try {
+        // Adjust the select as needed; this loads all rows from profiles
+        const { data, error } = await supabase.from('profiles').select('id,email,created_at,is_admin').order('created_at',{ascending:false}).limit(1000);
+        if (error) throw error;
+        profiles = data || [];
+        renderProfiles();
+        profilesLoading.textContent = 'Loaded';
+      } catch (err) {
+        profilesLoading.textContent = 'Error';
+        log('loadProfiles error', err);
+        alert('Failed to load profiles: ' + (err.message || err));
+      }
+    }
+
+    function renderProfiles(){
+      profilesList.innerHTML = '';
+      if (!profiles.length) {
+        profilesList.innerHTML = '<li class="muted">No users</li>';
+        return;
+      }
+      profiles.forEach(p=>{
+        const li = document.createElement('li');
+        li.className = 'clickable';
+        li.innerHTML = `<div>${escapeHtml(p.email||p.id)}</div><div class="muted">${p.is_admin ? 'admin' : ''}</div>`;
+        li.addEventListener('click', ()=> selectProfile(p, li));
+        profilesList.appendChild(li);
+      });
+    }
+
+    // Select profile => load devices for that profile
+    async function selectProfile(profile, liEl){
+      // UI selection highlight
+      Array.from(profilesList.children).forEach(c=>c.classList.remove('selected'));
+      liEl.classList.add('selected');
+      selectedProfile = profile;
+      devicesTitle.textContent = `Devices for ${profile.email||profile.id}`;
+      devicesSub.textContent = 'Loading devices…';
+      await loadDevicesForProfile(profile.id);
+    }
+
+    async function loadDevicesForProfile(profileId){
+      devicesLoading.textContent = 'Loading…';
+      devicesBody.innerHTML = '';
+      selectedDevice = null;
+      featuresList.innerHTML = '';
+      try {
+        // owner field must match profile id; adapt field name if different
+        const { data, error } = await supabase.from('devices').select('*').eq('owner', profileId).order('created_at',{ascending:false}).limit(1000);
+        if (error) throw error;
+        devices = data || [];
+        renderDevices();
+        devicesLoading.textContent = 'Loaded';
+      } catch (err) {
+        devicesLoading.textContent = 'Error';
+        log('loadDevicesForProfile error', err);
+        alert('Failed to load devices: ' + (err.message || err));
+      }
+    }
+
+    function renderDevices(){
+      devicesBody.innerHTML = '';
+      if (!devices.length) {
+        devicesTable.style.display = 'none';
+        noDevices.style.display = 'block';
+        return;
+      }
+      noDevices.style.display = 'none';
+      devicesTable.style.display = 'table';
+      devices.forEach(d=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${escapeHtml(d.id)}</td><td class="clickable name">${escapeHtml(d.name||'')}</td><td>${escapeHtml(d.model||'')}</td><td style="max-width:200px;white-space:pre-wrap">${escapeHtml(JSON.stringify(d.features||{}))}</td>`;
+        // clicking row loads device features
+        tr.querySelector('.name').addEventListener('click', ()=> selectDevice(d, tr));
+        devicesBody.appendChild(tr);
+      });
+    }
+
+    // Select device => render features with switches
+    function selectDevice(device, trEl){
+      // highlight selected device row
+      Array.from(devicesBody.querySelectorAll('tr')).forEach(r=>r.classList.remove('selected'));
+      trEl.classList.add('selected');
+      selectedDevice = device;
+      editingFeatures = Object.assign({}, device.features || {}); // shallow copy
+      deviceTitle.textContent = `Features for ${device.name || device.id}`;
+      deviceSub.textContent = `Device ID: ${device.id}`;
+      selectedDeviceInfo.textContent = `Model: ${device.model || 'unknown'} • Owner: ${device.owner || ''}`;
+      renderFeatures();
+      saveFeaturesBtn.style.display = 'inline-block';
+    }
+
+    function renderFeatures(){
+      featuresList.innerHTML = '';
+      for (const f of FEATURE_MAP){
+        const row = document.createElement('div');
+        row.className = 'feature';
+        const left = document.createElement('div');
+        left.textContent = f.label;
+        const right = document.createElement('div');
+        right.className = 'switch';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = !!editingFeatures[f.key];
+        cb.addEventListener('change', ()=> {
+          editingFeatures[f.key] = cb.checked;
+          // optimistic update: update UI immediately and persist
+          persistFeatureToggle(selectedDevice.id, f.key, cb.checked);
+        });
+        right.appendChild(cb);
+        row.appendChild(left);
+        row.appendChild(right);
+        featuresList.appendChild(row);
+      }
+    }
+
+    // Persist single feature toggle by merging into device.features
+    async function persistFeatureToggle(deviceId, key, value){
+      try {
+        // get latest features from DB to avoid clobbering concurrent changes
+        const { data: latest, error: getErr } = await supabase.from('devices').select('features').eq('id', deviceId).single();
+        if (getErr) throw getErr;
+        const featuresCurrent = Object.assign({}, latest?.features || {}, { [key]: value });
+        const { data, error } = await supabase.from('devices').update({ features: featuresCurrent }).eq('id', deviceId).select().single();
+        if (error) throw error;
+        // reflect saved state
+        selectedDevice.features = data.features;
+        editingFeatures = Object.assign({}, data.features);
+        log('feature saved', key, value, 'device', deviceId);
+        // update devices table row cell display (simple refresh)
+        renderDevices();
+      } catch (err) {
+        log('persistFeatureToggle err', err);
+        alert('Failed to save feature: ' + (err.message || err));
+        // re-sync checkbox to server value after error
+        const cb = Array.from(featuresList.querySelectorAll('input[type="checkbox"]')).find((c, i) => FEATURE_MAP[i].key === key);
+        if (cb) cb.checked = !!(selectedDevice.features && selectedDevice.features[key]);
+      }
+    }
+
+    // Bind refresh devices button (re-load for current profile)
+    refreshDevicesBtn.addEventListener('click', async ()=>{
+      if (!selectedProfile) return alert('Select a user first');
+      await loadDevicesForProfile(selectedProfile.id);
+    });
+
+    // initial auth state read
     (async ()=>{
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        await updateUI(user);
-      } catch (err) { log('init error', err); }
+        if (user) await onAuth(user);
+      } catch (err) { log('init auth err', err); }
     })();
 
-    // util
+    // small util
     function escapeHtml(s){ if (s == null) return ''; return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
   </script>
 </body>
 </html>
-`
