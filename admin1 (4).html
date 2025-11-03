@@ -142,6 +142,25 @@
       target.appendChild(b);
     })();
 
+    // add Reset session button to top-right
+    (function addResetButton() {
+      const br = document.createElement('button');
+      br.textContent = 'Reset session';
+      br.className = 'ghost';
+      br.style.marginLeft = '8px';
+      br.addEventListener('click', async () => {
+        try { await supabase.auth.signOut(); } catch (e) {}
+        try {
+          Object.keys(localStorage).forEach(k => { if (k.toLowerCase().includes('supabase') || k.toLowerCase().includes('auth')) localStorage.removeItem(k); });
+          Object.keys(sessionStorage).forEach(k => { if (k.toLowerCase().includes('supabase') || k.toLowerCase().includes('auth')) sessionStorage.removeItem(k); });
+        } catch (e) { console.warn('clear storage error', e); }
+        await onAuth(null);
+        location.reload();
+      });
+      const topRight = document.querySelector('.top-right');
+      if (topRight) topRight.appendChild(br);
+    })();
+
     // DOM
     const loginArea = document.getElementById('login-area');
     const signinBtn = document.getElementById('signin-btn'), signoutBtn = document.getElementById('signout-btn');
@@ -205,9 +224,25 @@
       }
     });
 
+    // robust sign out: sign out, clear stored supabase keys, reset UI and reload
     signoutBtn.addEventListener('click', async () => {
-      await supabase.auth.signOut();
+      try {
+        await supabase.auth.signOut();
+      } catch (e) {
+        console.warn('signOut error', e);
+      }
+      try {
+        Object.keys(localStorage).forEach(k => {
+          if (k.toLowerCase().includes('supabase') || k.toLowerCase().includes('auth')) localStorage.removeItem(k);
+        });
+        Object.keys(sessionStorage).forEach(k => {
+          if (k.toLowerCase().includes('supabase') || k.toLowerCase().includes('auth')) sessionStorage.removeItem(k);
+        });
+      } catch (e) {
+        console.warn('clear storage error', e);
+      }
       await onAuth(null);
+      location.reload();
     });
 
     supabase.auth.onAuthStateChange(async (evt, session) => {
