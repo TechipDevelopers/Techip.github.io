@@ -249,7 +249,35 @@
 async function loadProfiles() {
   profilesEmpty.textContent = 'Loading users…';
   profilesList.innerHTML = '';
+  document.getElementById('spinner').style.display = 'inline-block';
+  document.getElementById('last-refreshed').textContent = '';
 
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData?.session?.access_token) {
+    log('No session before profiles query — forcing sign out');
+    await supabase.auth.signOut();
+    await onAuth(null);
+    return;
+  }
+    const { data, error } = await supabase.from('profiles').select('id,email,created_at,is_admin').order('created_at', { ascending: false }).limit(2000);
+    if (error) throw error;
+    profiles = data || [];
+    renderProfiles();
+    profilesEmpty.style.display = profiles.length ? 'none' : 'block';
+    if (!profiles.length) profilesEmpty.textContent = 'No users found';
+
+    // ✅ Update timestamp
+    const now = new Date();
+    const formatted = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    document.getElementById('last-refreshed').textContent = 'Last refreshed: ' + formatted;
+  } catch (err) {
+    profilesEmpty.textContent = 'Failed to load';
+    log('loadProfiles err', err);
+    alert('Failed loading users: ' + (err.message || err));
+  } finally {
+    document.getElementById('spinner').style.display = 'none';
+  }
+}
   // SESSION CHECK — bail out and reset UI if session is missing
   const { data: sessionData } = await supabase.auth.getSession();
   if (!sessionData?.session?.access_token) {
