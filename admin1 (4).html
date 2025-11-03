@@ -104,6 +104,30 @@
   </div>
 
   <script type="module">
+    // DEBUG: dump supabase session + localStorage keys
+(function addQuickDebug() {
+  const b = document.createElement('button');
+  b.textContent = 'Dump session';
+  b.className = 'ghost';
+  b.style.marginLeft = '8px';
+  b.addEventListener('click', async () => {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const { data: userData } = await supabase.auth.getUser();
+      const ls = Object.keys(localStorage).filter(k => k.toLowerCase().includes('supabase') || k.toLowerCase().includes('auth')).map(k => `${k}: ${String(localStorage[k]).slice(0,120)}`);
+      console.log('DEBUG sessionData', sessionData);
+      console.log('DEBUG userData', userData);
+      console.log('DEBUG localStorage keys', ls);
+      log('DEBUG sessionData: ' + JSON.stringify(sessionData?.session || sessionData) );
+      log('DEBUG userData: ' + JSON.stringify(userData?.user || userData) );
+      log('DEBUG localStorage keys: ' + ls.join(' | ') );
+    } catch (e) {
+      console.error('dump session err', e);
+      log('dump session err: ' + (e && e.message));
+    }
+  });
+  document.getElementById('login-area').appendChild(b);
+})();
     // SANITY CHECKS (keeps extra logging to help debug why sign-in might "do nothing")
     // You can remove these after you verify everything works
     try {
