@@ -265,17 +265,6 @@ async function loadProfiles() {
     renderProfiles();
     profilesEmpty.style.display = profiles.length ? 'none' : 'block';
     if (!profiles.length) profilesEmpty.textContent = 'No users found';
-
-    // ✅ Update timestamp
-    const now = new Date();
-    const formatted = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    document.getElementById('last-refreshed').textContent = 'Last refreshed: ' + formatted;
-  } catch (err) {
-    profilesEmpty.textContent = 'Failed to load';
-    log('loadProfiles err', err);
-    alert('Failed loading users: ' + (err.message || err));
-  } finally {
-    document.getElementById('spinner').style.display = 'none';
   }
 }
   // SESSION CHECK — bail out and reset UI if session is missing
