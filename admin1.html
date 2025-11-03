@@ -123,41 +123,49 @@
   </div>
 
   <script type="module">
-    // SANITY CHECKS (keeps extra logging to help debug why sign-in might "do nothing")
-    try { alert('Script running — sanity check'); } catch (e) {}
-
     import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-    // CONFIG
     const SUPABASE_URL = 'https://cnwerkocgdhimiwuawiv.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNud2Vya29jZ2RoaW1pd3Vhd2l2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTMwMjAsImV4cCI6MjA3NzY2OTAyMH0.X0ewxmFBh2ofhIQGPgDucJk9pQJylXDoLTerxYgrouw';
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true } });
 
     // DOM
     const loginArea = document.getElementById('login-area');
-    const signinBtn = document.getElementById('signin-btn'), signoutBtn = document.getElementById('signout-btn');
-    const emailInput = document.getElementById('email'), passwordInput = document.getElementById('password');
-    const app = document.getElementById('app'), signedAs = document.getElementById('signed-as');
+    const signinBtn = document.getElementById('signin-btn');
+    const signoutBtn = document.getElementById('signout-btn');
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+    const app = document.getElementById('app');
+    const signedAs = document.getElementById('signed-as');
 
-    const profilesList = document.getElementById('profiles-list'), profilesEmpty = document.getElementById('profiles-empty');
-    const refreshProfilesBtn = document.getElementById('refresh-profiles'), profilesCount = document.getElementById('profiles-count');
+    const profilesList = document.getElementById('profiles-list');
+    const profilesEmpty = document.getElementById('profiles-empty');
+    const refreshProfilesBtn = document.getElementById('refresh-profiles');
+    const profilesCount = document.getElementById('profiles-count');
 
-    const newEmail = document.getElementById('new-email'), newPassword = document.getElementById('new-password');
-    const createAuthBtn = document.getElementById('create-auth-user-btn'), createProfileBtn = document.getElementById('create-profile-only-btn');
+    const newEmail = document.getElementById('new-email');
+    const newPassword = document.getElementById('new-password');
+    const createAuthBtn = document.getElementById('create-auth-user-btn');
+    const createProfileBtn = document.getElementById('create-profile-only-btn');
     const addMsg = document.getElementById('add-user-msg');
 
-    const devicesTitle = document.getElementById('devices-title'), devicesSub = document.getElementById('devices-sub');
-    const devicesTable = document.getElementById('devices-table'), devicesBody = document.getElementById('devices-body'), devicesEmpty = document.getElementById('devices-empty');
+    const devicesTitle = document.getElementById('devices-title');
+    const devicesSub = document.getElementById('devices-sub');
+    const devicesTable = document.getElementById('devices-table');
+    const devicesBody = document.getElementById('devices-body');
+    const devicesEmpty = document.getElementById('devices-empty');
     const refreshDevicesBtn = document.getElementById('refresh-devices');
 
-    const featuresList = document.getElementById('features-list'), selectedDeviceEl = document.getElementById('selected-device');
-    const featureTitle = document.getElementById('feature-title'), featureSub = document.getElementById('feature-sub');
-    const debugEl = document.getElementById('debug'), applyAllBtn = document.getElementById('apply-all');
+    const featuresList = document.getElementById('features-list');
+    const selectedDeviceEl = document.getElementById('selected-device');
+    const featureTitle = document.getElementById('feature-title');
+    const featureSub = document.getElementById('feature-sub');
+    const debugEl = document.getElementById('debug');
+    const applyAllBtn = document.getElementById('apply-all');
 
     function log(...args){ console.log(...args); debugEl.textContent = args.map(a=> typeof a==='object' ? JSON.stringify(a,null,2) : String(a)).join(' '); }
     function escapeHtml(s){ if (s == null) return ''; return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
 
-    // Feature map (13 features)
     const FEATURE_MAP = [
       { key: 'block_play_store', label: 'Block Google Play Store' },
       { key: 'block_developer_options', label: 'Block Developer Options' },
@@ -178,48 +186,35 @@
     // State
     let profiles = [], selectedProfile = null, devices = [], selectedDevice = null, editingFeatures = {};
 
-    // --- Auth: verbose sign-in handler that logs full response
+    // Auth handlers
     signinBtn.addEventListener('click', async () => {
-      const email = emailInput.value.trim(), password = passwordInput.value;
+      const email = emailInput.value.trim();
+      const password = passwordInput.value;
       if (!email || !password) { alert('Email and password required'); return; }
 
       signinBtn.disabled = true;
       try {
-        try { alert('Attempting sign-in (debug)'); } catch(e){}
-
         const res = await supabase.auth.signInWithPassword({ email, password });
-        console.log('supabase.signInWithPassword ->', res);
-        log('supabase.signInWithPassword -> ' + JSON.stringify(res, null, 2));
-
+        log('signIn ->', res);
         if (res.error) {
           alert('Sign-in failed: ' + res.error.message);
           return;
         }
-
-        const { data: { user }, error: getUserError } = await supabase.auth.getUser();
-        if (getUserError) {
-          console.error('getUser error', getUserError);
-          alert('Sign-in succeeded but getting user failed: ' + getUserError.message);
-        } else {
-          alert('Sign-in success (debug)');
-        }
-
+        const { data: { user } } = await supabase.auth.getUser();
         await onAuth(user);
       } catch (err) {
-        console.error('sign-in exception', err);
+        log('sign-in exception', err);
         alert('Sign-in exception: ' + (err.message || err));
       } finally {
         signinBtn.disabled = false;
       }
     });
 
-    // sign out
     signoutBtn.addEventListener('click', async () => {
       await supabase.auth.signOut();
       await onAuth(null);
     });
 
-    // react to auth changes
     supabase.auth.onAuthStateChange(async (evt, session) => {
       log('auth state change: ' + evt);
       await onAuth(session?.user ?? null);
@@ -251,7 +246,7 @@
       await loadProfiles();
     }
 
-    // --- Profiles (users)
+    // Profiles
     refreshProfilesBtn.addEventListener('click', loadProfiles);
 
     async function loadProfiles() {
@@ -291,14 +286,13 @@
       });
     }
 
-    // --- Add user handlers (two flows)
+    // Add user handlers
     function showAddMsg(text, isError = false) {
       addMsg.textContent = text;
       addMsg.style.color = isError ? 'crimson' : '#0a0';
       setTimeout(() => { addMsg.textContent = '' }, 5000);
     }
 
-    // Flow A: create an auth user (email + password) and upsert profile
     createAuthBtn.addEventListener('click', async () => {
       const email = newEmail.value.trim();
       const password = newPassword.value;
@@ -310,6 +304,7 @@
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) {
           showAddMsg('Auth create error: ' + error.message, true);
+          createAuthBtn.disabled = false;
           return;
         }
         const userId = data?.user?.id;
@@ -319,6 +314,7 @@
             .upsert({ id: userId, email, is_admin: false, created_at: new Date().toISOString() });
           if (profileErr) {
             showAddMsg('Profile upsert error: ' + profileErr.message, true);
+            createAuthBtn.disabled = false;
             return;
           }
         }
@@ -332,7 +328,6 @@
       }
     });
 
-    // Flow B: create a profile row only (no auth user)
     createProfileBtn.addEventListener('click', async () => {
       const email = newEmail.value.trim();
       if (!email) { showAddMsg('Provide email', true); return; }
@@ -353,6 +348,7 @@
           .insert([{ id, email, is_admin: false, created_at: new Date().toISOString() }]);
         if (error) {
           showAddMsg('Insert error: ' + error.message, true);
+          createProfileBtn.disabled = false;
           return;
         }
         showAddMsg('Profile created (id: ' + id + ')');
@@ -365,7 +361,7 @@
       }
     });
 
-    // --- Devices for profile
+    // Devices
     async function selectProfile(profile, liEl) {
       Array.from(profilesList.children).forEach(c => c.classList.remove('selected'));
       liEl.classList.add('selected');
@@ -426,23 +422,22 @@
       });
     }
 
-   // --- Device selection & features rendering
     function selectDevice(device, trEl) {
       Array.from(devicesBody.querySelectorAll('tr')).forEach(r => r.classList.remove('selected'));
       trEl.classList.add('selected');
 
       selectedDevice = device;
       editingFeatures = Object.assign({}, device.features || {});
-      featureTitle.textContent = device.name ? Features — ${device.name} : Features — ${device.id};
-      featureSub.textContent = Device ID: ${device.id};
-      selectedDeviceEl.innerHTML = <div class="muted">Model: ${escapeHtml(device.model || 'unknown')}</div>;
+      featureTitle.textContent = device.name ? `Features — ${device.name}` : `Features — ${device.id}`;
+      featureSub.textContent = `Device ID: ${device.id}`;
+      selectedDeviceEl.innerHTML = `<div class="muted">Model: ${escapeHtml(device.model || 'unknown')}</div>`;
       renderFeatureControls();
       applyAllBtn.style.display = 'none';
     }
 
     function renderFeatureControls() {
       featuresList.innerHTML = '';
-      FEATURE_MAP.forEach((f, i) => {
+      FEATURE_MAP.forEach((f) => {
         const wrap = document.createElement('div'); wrap.className = 'feature';
         const left = document.createElement('div'); left.className = 'label'; left.textContent = f.label;
         const right = document.createElement('div'); right.className = 'switch';
@@ -481,7 +476,7 @@
       }
     }
 
-    // --- init: check existing session
+    // Init: check existing session and wire simple create device
     (async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -491,7 +486,6 @@
       }
     })();
 
-   // small convenience: create device prompt
     document.getElementById('create-device-btn').addEventListener('click', async () => {
       if (!selectedProfile) return alert('Select a user first');
       const name = prompt('Device name'); if (!name) return;
@@ -505,10 +499,12 @@
       } catch (err) { log('create device err', err); alert('Create device failed: ' + (err.message || err)); }
     });
 
-    // wire refresh
     document.getElementById('refresh-profiles').addEventListener('click', loadProfiles);
+    document.getElementById('refresh-devices').addEventListener('click', async () => {
+      if (!selectedProfile) return alert('Select a user first');
+      await loadDevicesForProfile(selectedProfile.id);
+    });
 
   </script>
 </body>
 </html>
-`
