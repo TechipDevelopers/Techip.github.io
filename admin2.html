@@ -257,6 +257,35 @@
                     <strong>Users</strong>
                     <div class="row">
                       <button class="ghost" onClick=${loadProfiles}>Refresh</button>
+                      <button class="ghost" onClick=${async () => {
+  const email = prompt('New user email'); if (!email) return;
+  const password = prompt('Password (min 6 chars)'); if (!password || password.length < 6) return alert('Password too short');
+  const isAdmin = confirm('Make this user an admin?');
+
+  try {
+    // Create Auth user
+    const { data: authUser, error: authErr } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true
+    });
+    if (authErr) throw authErr;
+
+    // Insert profile row
+    const { data: profile, error: profileErr } = await supabase.from('profiles').insert([{
+      id: authUser.user.id,
+      email,
+      is_admin: isAdmin
+    }]);
+    if (profileErr) throw profileErr;
+
+    alert('User created: ' + email);
+    await loadProfiles();
+  } catch (err) {
+    log('create user error', err);
+    alert('Create user failed: ' + (err?.message || err));
+  }
+}}>Create user</button>
                     </div>
                   </div>
                   <div class="small muted" style="margin-bottom:8px">
