@@ -105,46 +105,32 @@
 
   <script type="module">
     // DEBUG: dump supabase session + localStorage keys
-(function addQuickDebug() {
-  const b = document.createElement('button');
-  b.textContent = 'Dump session';
-  b.className = 'ghost';
-  b.style.marginLeft = '8px';
-  b.addEventListener('click', async () => {
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const { data: userData } = await supabase.auth.getUser();
-      const ls = Object.keys(localStorage).filter(k => k.toLowerCase().includes('supabase') || k.toLowerCase().includes('auth')).map(k => `${k}: ${String(localStorage[k]).slice(0,120)}`);
-      console.log('DEBUG sessionData', sessionData);
-      console.log('DEBUG userData', userData);
-      console.log('DEBUG localStorage keys', ls);
-      log('DEBUG sessionData: ' + JSON.stringify(sessionData?.session || sessionData) );
-      log('DEBUG userData: ' + JSON.stringify(userData?.user || userData) );
-      log('DEBUG localStorage keys: ' + ls.join(' | ') );
-    } catch (e) {
-      console.error('dump session err', e);
-      log('dump session err: ' + (e && e.message));
-    }
-  });
-  document.getElementById('login-area').appendChild(b);
-})();
-    // SANITY CHECKS (keeps extra logging to help debug why sign-in might "do nothing")
-    // You can remove these after you verify everything works
-    try {
-      alert('Script running — sanity check');
-    } catch (e) {
-      // ignore if alert blocked
-    }
+    (function addQuickDebug() {
+      const b = document.createElement('button');
+      b.textContent = 'Dump session';
+      b.className = 'ghost';
+      b.style.marginLeft = '8px';
+      b.addEventListener('click', async () => {
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const { data: userData } = await supabase.auth.getUser();
+          const ls = Object.keys(localStorage).filter(k => k.toLowerCase().includes('supabase') || k.toLowerCase().includes('auth')).map(k => `${k}: ${String(localStorage[k]).slice(0,120)}`);
+          console.log('DEBUG sessionData', sessionData);
+          console.log('DEBUG userData', userData);
+          console.log('DEBUG localStorage keys', ls);
+          log('DEBUG sessionData: ' + JSON.stringify(sessionData?.session || sessionData) );
+          log('DEBUG userData: ' + JSON.stringify(userData?.user || userData) );
+          log('DEBUG localStorage keys: ' + ls.join(' | ') );
+        } catch (e) {
+          console.error('dump session err', e);
+          log('dump session err: ' + (e && e.message));
+        }
+      });
+      document.getElementById('login-area').appendChild(b);
+    })();
 
-    // verbose click echo for quick test
-    document.addEventListener('DOMContentLoaded', () => {
-      const signinTestBtn = document.getElementById('signin-btn');
-      if (signinTestBtn) {
-        signinTestBtn.addEventListener('click', () => {
-          try { alert('signin button clicked (sanity)'); } catch (e) {}
-        }, { once: true });
-      }
-    });
+    // SANITY CHECKS (keeps extra logging to help debug why sign-in might "do nothing")
+    try { alert('Script running — sanity check'); } catch (e) {}
 
     import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
@@ -173,7 +159,6 @@
     function log(...args){ console.log(...args); debugEl.textContent = args.map(a=> typeof a==='object' ? JSON.stringify(a,null,2) : String(a)).join(' '); }
     function escapeHtml(s){ if (s == null) return ''; return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
 
-    // Feature map (13 features)
     const FEATURE_MAP = [
       { key: 'block_play_store', label: 'Block Google Play Store' },
       { key: 'block_developer_options', label: 'Block Developer Options' },
@@ -194,51 +179,34 @@
     // State
     let profiles = [], selectedProfile = null, devices = [], selectedDevice = null, editingFeatures = {};
 
-    // --- Auth: verbose sign-in handler that logs full response
+    // Auth handlers
     signinBtn.addEventListener('click', async () => {
       const email = emailInput.value.trim(), password = passwordInput.value;
       if (!email || !password) { alert('Email and password required'); return; }
 
       signinBtn.disabled = true;
       try {
-        // Explicit debug alert to confirm click handler executed
-        try { alert('Attempting sign-in (debug)'); } catch(e){}
-
-        // Make the call and log full response object
         const res = await supabase.auth.signInWithPassword({ email, password });
-        console.log('supabase.signInWithPassword ->', res);
         log('supabase.signInWithPassword -> ' + JSON.stringify(res, null, 2));
-
         if (res.error) {
           alert('Sign-in failed: ' + res.error.message);
           return;
         }
-
-        // For SDK v2: getUser returns the current user
-        const { data: { user }, error: getUserError } = await supabase.auth.getUser();
-        if (getUserError) {
-          console.error('getUser error', getUserError);
-          alert('Sign-in succeeded but getting user failed: ' + getUserError.message);
-        } else {
-          alert('Sign-in success (debug)');
-        }
-
+        const { data: { user } } = await supabase.auth.getUser();
         await onAuth(user);
       } catch (err) {
-        console.error('sign-in exception', err);
+        log('sign-in exception', err);
         alert('Sign-in exception: ' + (err.message || err));
       } finally {
         signinBtn.disabled = false;
       }
     });
 
-    // sign out
     signoutBtn.addEventListener('click', async () => {
       await supabase.auth.signOut();
       await onAuth(null);
     });
 
-    // react to auth changes
     supabase.auth.onAuthStateChange(async (evt, session) => {
       log('auth state change: ' + evt);
       await onAuth(session?.user ?? null);
@@ -246,7 +214,6 @@
 
     async function onAuth(user) {
       if (!user) {
-        // show only login
         app.style.display = 'none';
         app.setAttribute('aria-hidden', 'true');
         loginArea.style.display = 'flex';
@@ -261,7 +228,6 @@
         return;
       }
 
-      // show app
       loginArea.style.display = 'none';
       app.style.display = 'flex';
       app.removeAttribute('aria-hidden');
@@ -269,32 +235,27 @@
       signedAs.textContent = 'Signed in as ' + (user.email || user.id);
       signoutBtn.style.display = 'inline-block';
 
-      // load users
       await loadProfiles();
     }
 
-    // --- Profiles (users)
+    // Profiles
     refreshProfilesBtn.addEventListener('click', loadProfiles);
 
-async function loadProfiles() {
-  profilesEmpty.textContent = 'Loading users…';
-  profilesList.innerHTML = '';
-  if (profiles.length === 0) {
-  log('Retrying profiles after delay...');
-  setTimeout(loadProfiles, 800); // retry once after 800ms
-  }
+    async function loadProfiles() {
+      profilesEmpty.textContent = 'Loading users…';
+      profilesList.innerHTML = '';
 
-  // SESSION CHECK — bail out and reset UI if session is missing
-  const { data: sessionData } = await supabase.auth.getSession();
-  if (!sessionData?.session?.access_token) {
-    log('No session before profiles query — forcing sign out');
-    await supabase.auth.signOut();
-    await onAuth(null);
-    return;
-  }
+      // SESSION CHECK — bail out and reset UI if session is missing
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session?.access_token) {
+        log('No session before profiles query — forcing sign out');
+        await supabase.auth.signOut();
+        await onAuth(null);
+        return;
+      }
 
-  try {
-    const { data, error } = await supabase.from('profiles').select('id,email,created_at,is_admin').order('created_at', { ascending: false }).limit(2000);
+      try {
+        const { data, error } = await supabase.from('profiles').select('id,email,created_at,is_admin').order('created_at', { ascending: false }).limit(2000);
         if (error) throw error;
         profiles = data || [];
         renderProfiles();
@@ -324,7 +285,7 @@ async function loadProfiles() {
       });
     }
 
-    // --- Devices for profile
+    // Devices
     async function selectProfile(profile, liEl) {
       Array.from(profilesList.children).forEach(c => c.classList.remove('selected'));
       liEl.classList.add('selected');
@@ -350,7 +311,6 @@ async function loadProfiles() {
       devicesTable.style.display = 'none';
       devicesBody.innerHTML = '';
       try {
-        // assumes devices.owner === profile.id
         const { data, error } = await supabase.from('devices').select('*').eq('owner', profileId).order('created_at', { ascending: false }).limit(2000);
         if (error) throw error;
         devices = data || [];
@@ -386,7 +346,7 @@ async function loadProfiles() {
       });
     }
 
-    // --- Device selection & features rendering
+    // Feature controls
     function selectDevice(device, trEl) {
       Array.from(devicesBody.querySelectorAll('tr')).forEach(r => r.classList.remove('selected'));
       trEl.classList.add('selected');
@@ -402,7 +362,7 @@ async function loadProfiles() {
 
     function renderFeatureControls() {
       featuresList.innerHTML = '';
-      FEATURE_MAP.forEach((f, i) => {
+      FEATURE_MAP.forEach((f) => {
         const wrap = document.createElement('div'); wrap.className = 'feature';
         const left = document.createElement('div'); left.className = 'label'; left.textContent = f.label;
         const right = document.createElement('div'); right.className = 'switch';
@@ -425,10 +385,8 @@ async function loadProfiles() {
       });
     }
 
-    // merge and update single feature
     async function persistFeatureToggle(deviceId, key, value) {
       try {
-        // get latest to avoid overwrite
         const { data: latest, error: getErr } = await supabase.from('devices').select('features').eq('id', deviceId).single();
         if (getErr) throw getErr;
         const featuresNow = Object.assign({}, latest?.features || {}, { [key]: value });
@@ -443,46 +401,31 @@ async function loadProfiles() {
       }
     }
 
-    // --- init: check existing session
-// robust init: wait for session to be restored
-(async () => {
-  try {
-    let session = null;
-    const start = Date.now();
-    while (Date.now() - start < 3000) {
-      const res = await supabase.auth.getSession();
-      session = res?.data?.session;
-      if (session?.user) break;
-      await new Promise(r => setTimeout(r, 200));
-    }
-    if (session?.user) {
-      log('init: session restored after wait');
-      const { data: { user } } = await supabase.auth.getUser();
-      log('init: user from getUser', user?.id || user?.email);
-      await onAuth(user);
-    } else {
-      log('init: no session after waiting 3s');
-    }
-  } catch (err) {
-    log('init session restore error', err);
-  }
-})();
+    // robust init: wait for session to be restored
+    (async () => {
+      try {
+        let session = null;
+        const start = Date.now();
+        while (Date.now() - start < 3000) {
+          const res = await supabase.auth.getSession();
+          session = res?.data?.session;
+          if (session?.user) break;
+          await new Promise(r => setTimeout(r, 200));
+        }
+        if (session?.user) {
+          log('init: session restored after wait');
+          const { data: { user } } = await supabase.auth.getUser();
+          log('init: user from getUser', user?.id || user?.email);
+          await onAuth(user);
+        } else {
+          log('init: no session after waiting 3s');
+        }
+      } catch (err) {
+        log('init session restore error', err);
+      }
+    })();
 
-    // Wait for auth state to stabilize before calling onAuth
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user?.id === session.user.id) {
-      await onAuth(user);
-    } else {
-      log('Session mismatch — forcing sign out');
-      await supabase.auth.signOut();
-      await onAuth(null);
-    }
-  } catch (err) {
-    log('init session restore error', err);
-  }
-})();
-
-   // small convenience: create device prompt
+    // small convenience: create device prompt
     document.getElementById('create-device-btn').addEventListener('click', async () => {
       if (!selectedProfile) return alert('Select a user first');
       const name = prompt('Device name'); if (!name) return;
@@ -502,4 +445,3 @@ async function loadProfiles() {
   </script>
 </body>
 </html>
-`
