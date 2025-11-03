@@ -35,9 +35,6 @@
     .switch input{width:20px;height:20px}
     #debug{margin-top:12px;background:#0b1a2b;color:#fff;padding:10px;border-radius:8px;font-family:monospace;font-size:13px;max-height:180px;overflow:auto}
     .top-right{display:flex;gap:8px;align-items:center}
-    .small-form {margin-bottom:12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-    .small-form input {width:150px}
-    .small-form .tiny {padding:8px 10px;border-radius:8px}
     @media(max-width:980px){ .main{flex-direction:column} .panel.small{width:100%} .wrap{padding:12px} }
   </style>
 </head>
@@ -59,7 +56,7 @@
       <input id="email" type="email" placeholder="admin@example.com" style="width:320px" />
       <input id="password" type="password" placeholder="Password" style="width:220px" />
       <button id="signin-btn">Admin Sign in</button>
-      <!-- show-session button appended by script -->
+      <!-- Show session button will be appended here by script -->
     </div>
 
     <!-- main app -->
@@ -71,18 +68,6 @@
             <button id="refresh-profiles" class="ghost">Refresh</button>
           </div>
         </div>
-
-        <!-- Add user form (above Refresh) -->
-        <div id="add-user-area" style="margin-bottom:12px">
-          <div class="small-form" aria-hidden="false">
-            <input id="new-email" type="email" placeholder="email" />
-            <input id="new-password" type="password" placeholder="password (for auth)" />
-            <button id="create-auth-user-btn" class="tiny">Create Auth</button>
-            <button id="create-profile-only-btn" class="tiny">Profile Only</button>
-          </div>
-          <div id="add-user-msg" class="muted" style="font-size:13px"></div>
-        </div>
-
         <div id="profiles-empty" class="empty">Sign in as admin to load users</div>
         <ul id="profiles-list" class="list" aria-live="polite"></ul>
       </aside>
@@ -139,12 +124,6 @@
     const profilesList = document.getElementById('profiles-list');
     const profilesEmpty = document.getElementById('profiles-empty');
     const refreshProfilesBtn = document.getElementById('refresh-profiles');
-
-    const newEmail = document.getElementById('new-email');
-    const newPassword = document.getElementById('new-password');
-    const createAuthBtn = document.getElementById('create-auth-user-btn');
-    const createProfileBtn = document.getElementById('create-profile-only-btn');
-    const addMsg = document.getElementById('add-user-msg');
 
     const devicesTitle = document.getElementById('devices-title');
     const devicesSub = document.getElementById('devices-sub');
@@ -267,16 +246,9 @@
       profilesEmpty.textContent = 'Loading users…';
       profilesList.innerHTML = '';
       try {
-        // ensure session present before query
+        // Log session presence before query
         const { data: sessionData } = await supabase.auth.getSession();
         log('loadProfiles session present:', !!sessionData?.session?.access_token);
-        if (!sessionData?.session?.access_token) {
-          log('No session — forcing UI reset');
-          await supabase.auth.signOut();
-          await onAuth(null);
-          return;
-        }
-
         const { data, error } = await supabase.from('profiles').select('id,email,created_at,is_admin').order('created_at', { ascending: false }).limit(2000);
         if (error) throw error;
         profiles = data || [];
@@ -306,81 +278,6 @@
         profilesList.appendChild(li);
       });
     }
-
-    // Add user handlers (two flows)
-    function showAddMsg(text, isError = false) {
-      addMsg.textContent = text;
-      addMsg.style.color = isError ? 'crimson' : '#0a0';
-      setTimeout(() => { addMsg.textContent = '' }, 5000);
-    }
-
-    createAuthBtn.addEventListener('click', async () => {
-      const email = newEmail.value.trim();
-      const password = newPassword.value;
-      if (!email || !password) { showAddMsg('Provide email and password', true); return; }
-
-      createAuthBtn.disabled = true;
-      showAddMsg('Creating auth user...');
-      try {
-        const { data, error } = await supabase.auth.signUp({ email, password });
-        if (error) {
-          showAddMsg('Auth create error: ' + error.message, true);
-          createAuthBtn.disabled = false;
-          return;
-        }
-        const userId = data?.user?.id;
-        if (userId) {
-          const { error: profileErr } = await supabase
-            .from('profiles')
-            .upsert({ id: userId, email, is_admin: false, created_at: new Date().toISOString() });
-          if (profileErr) {
-            showAddMsg('Profile upsert error: ' + profileErr.message, true);
-            createAuthBtn.disabled = false;
-            return;
-          }
-        }
-        showAddMsg('Auth user created. Confirm email if required.');
-        await loadProfiles();
-      } catch (e) {
-        showAddMsg('Unexpected error creating auth user', true);
-        console.error(e);
-      } finally {
-        createAuthBtn.disabled = false;
-      }
-    });
-
-    createProfileBtn.addEventListener('click', async () => {
-      const email = newEmail.value.trim();
-      if (!email) { showAddMsg('Provide email', true); return; }
-
-      function uuidv4() {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-          const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-          return v.toString(16);
-        });
-      }
-
-      const id = uuidv4();
-      createProfileBtn.disabled = true;
-      showAddMsg('Creating profile row...');
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .insert([{ id, email, is_admin: false, created_at: new Date().toISOString() }]);
-        if (error) {
-          showAddMsg('Insert error: ' + error.message, true);
-          createProfileBtn.disabled = false;
-          return;
-        }
-        showAddMsg('Profile created (id: ' + id + ')');
-        await loadProfiles();
-      } catch (e) {
-        showAddMsg('Unexpected error inserting profile', true);
-        console.error(e);
-      } finally {
-        createProfileBtn.disabled = false;
-      }
-    });
 
     // Devices
     async function selectProfile(profile, liEl) {
@@ -443,16 +340,16 @@
       });
     }
 
-  // Feature controls
+    // Feature controls (unchanged)
     function selectDevice(device, trEl) {
       Array.from(devicesBody.querySelectorAll('tr')).forEach(r => r.classList.remove('selected'));
       trEl.classList.add('selected');
 
       selectedDevice = device;
       editingFeatures = Object.assign({}, device.features || {});
-      featureTitle.textContent = device.name ? Features — ${device.name} : Features — ${device.id};
-      featureSub.textContent = Device ID: ${device.id};
-      selectedDeviceEl.innerHTML = <div class="muted">Model: ${escapeHtml(device.model || 'unknown')}</div>;
+      featureTitle.textContent = device.name ? `Features — ${device.name}` : `Features — ${device.id}`;
+      featureSub.textContent = `Device ID: ${device.id}`;
+      selectedDeviceEl.innerHTML = `<div class="muted">Model: ${escapeHtml(device.model || 'unknown')}</div>`;
       renderFeatureControls();
       applyAllBtn.style.display = 'none';
     }
@@ -498,17 +395,13 @@
       }
     }
 
-    // Init: restore session explicitly
+    // Init: check existing session
     (async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          await onAuth(session.user);
-        } else {
-          log('No session found on init');
-        }
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) await onAuth(user);
       } catch (err) {
-        log('init session restore error', err);
+        log('init auth err', err);
       }
     })();
 
@@ -525,6 +418,7 @@
         alert('Device created: ' + (data.id || data.name || 'ok'));
       } catch (err) {
         log('create device err', err);
+        // If this is an RLS error, check whether the SDK session was invalidated and reset UI
         const msg = (err && (err.message || err.error || JSON.stringify(err))) || String(err);
         if (msg.toLowerCase().includes('row-level security') || msg.toLowerCase().includes('row level security')) {
           try {
@@ -532,12 +426,14 @@
             const hasToken = !!sessionData?.session?.access_token;
             log('RLS insert failed — session present?', hasToken);
             if (!hasToken) {
+              // session lost: force sign out and show login so user can re-auth
               alert('Session expired after failed insert. Please sign in again.');
               await supabase.auth.signOut();
               await onAuth(null);
               return;
             }
           } catch (e) {
+            // fall through to generic alert
             log('error checking session after RLS failure', e);
           }
         }
