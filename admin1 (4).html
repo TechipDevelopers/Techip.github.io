@@ -252,11 +252,21 @@
     // --- Profiles (users)
     refreshProfilesBtn.addEventListener('click', loadProfiles);
 
-    async function loadProfiles() {
-      profilesEmpty.textContent = 'Loading users…';
-      profilesList.innerHTML = '';
-      try {
-        const { data, error } = await supabase.from('profiles').select('id,email,created_at,is_admin').order('created_at', { ascending: false }).limit(2000);
+async function loadProfiles() {
+  profilesEmpty.textContent = 'Loading users…';
+  profilesList.innerHTML = '';
+
+  // SESSION CHECK — bail out and reset UI if session is missing
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData?.session?.access_token) {
+    log('No session before profiles query — forcing sign out');
+    await supabase.auth.signOut();
+    await onAuth(null);
+    return;
+  }
+
+  try {
+    const { data, error } = await supabase.from('profiles').select('id,email,created_at,is_admin').order('created_at', { ascending: false }).limit(2000);
         if (error) throw error;
         profiles = data || [];
         renderProfiles();
