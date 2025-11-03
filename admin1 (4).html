@@ -406,14 +406,19 @@
     }
 
     // --- init: check existing session
-    (async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) await onAuth(user);
-      } catch (err) {
-        log('init auth err', err);
-      }
-    })();
+// --- init: restore session explicitly on page load
+(async () => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      await onAuth(session.user);
+    } else {
+      log('No session found on init');
+    }
+  } catch (err) {
+    log('init session restore error', err);
+  }
+})();
 
    // small convenience: create device prompt
     document.getElementById('create-device-btn').addEventListener('click', async () => {
