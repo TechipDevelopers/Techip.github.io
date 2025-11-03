@@ -444,14 +444,29 @@ async function loadProfiles() {
     }
 
     // --- init: check existing session
-// --- init: restore session explicitly on page load
+// robust init: wait for session to be restored
 (async () => {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) {
-      log('No session found on init');
-      return;
+    let session = null;
+    const start = Date.now();
+    while (Date.now() - start < 3000) {
+      const res = await supabase.auth.getSession();
+      session = res?.data?.session;
+      if (session?.user) break;
+      await new Promise(r => setTimeout(r, 200));
     }
+    if (session?.user) {
+      log('init: session restored after wait');
+      const { data: { user } } = await supabase.auth.getUser();
+      log('init: user from getUser', user?.id || user?.email);
+      await onAuth(user);
+    } else {
+      log('init: no session after waiting 3s');
+    }
+  } catch (err) {
+    log('init session restore error', err);
+  }
+})();
 
     // Wait for auth state to stabilize before calling onAuth
     const { data: { user } } = await supabase.auth.getUser();
