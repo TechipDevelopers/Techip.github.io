@@ -104,7 +104,17 @@
   </div>
 
   <script type="module">
-    // DEBUG: dump supabase session + localStorage keys
+    // SANITY CHECK
+    try { alert('Script running — sanity check'); } catch (e) {}
+
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+    // CONFIG
+    const SUPABASE_URL = 'https://cnwerkocgdhimiwuawiv.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNud2Vya29jZ2RoaW1pd3Vhd2l2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTMwMjAsImV4cCI6MjA3NzY2OTAyMH0.X0ewxmFBh2ofhIQGPgDucJk9pQJylXDoLTerxYgrouw';
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true } });
+
+    // DEBUG: dump supabase session + localStorage keys (placed after supabase client)
     (function addQuickDebug() {
       const b = document.createElement('button');
       b.textContent = 'Dump session';
@@ -114,30 +124,23 @@
         try {
           const { data: sessionData } = await supabase.auth.getSession();
           const { data: userData } = await supabase.auth.getUser();
-          const ls = Object.keys(localStorage).filter(k => k.toLowerCase().includes('supabase') || k.toLowerCase().includes('auth')).map(k => `${k}: ${String(localStorage[k]).slice(0,120)}`);
+          const ls = Object.keys(localStorage)
+            .filter(k => k.toLowerCase().includes('supabase') || k.toLowerCase().includes('auth'))
+            .map(k => `${k}: ${String(localStorage[k]).slice(0,120)}`);
           console.log('DEBUG sessionData', sessionData);
           console.log('DEBUG userData', userData);
           console.log('DEBUG localStorage keys', ls);
-          log('DEBUG sessionData: ' + JSON.stringify(sessionData?.session || sessionData) );
-          log('DEBUG userData: ' + JSON.stringify(userData?.user || userData) );
-          log('DEBUG localStorage keys: ' + ls.join(' | ') );
+          log('DEBUG sessionData: ' + JSON.stringify(sessionData?.session || sessionData));
+          log('DEBUG userData: ' + JSON.stringify(userData?.user || userData));
+          log('DEBUG localStorage keys: ' + ls.join(' | '));
         } catch (e) {
           console.error('dump session err', e);
           log('dump session err: ' + (e && e.message));
         }
       });
-      document.getElementById('login-area').appendChild(b);
+      const target = document.getElementById('login-area') || document.body;
+      target.appendChild(b);
     })();
-
-    // SANITY CHECKS (keeps extra logging to help debug why sign-in might "do nothing")
-    try { alert('Script running — sanity check'); } catch (e) {}
-
-    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-
-    // CONFIG
-    const SUPABASE_URL = 'https://cnwerkocgdhimiwuawiv.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNud2Vya29jZ2RoaW1pd3Vhd2l2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTMwMjAsImV4cCI6MjA3NzY2OTAyMH0.X0ewxmFBh2ofhIQGPgDucJk9pQJylXDoLTerxYgrouw';
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true } });
 
     // DOM
     const loginArea = document.getElementById('login-area');
