@@ -420,10 +420,19 @@ async function loadProfiles() {
 (async () => {
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      await onAuth(session.user);
-    } else {
+    if (!session?.user) {
       log('No session found on init');
+      return;
+    }
+
+    // Wait for auth state to stabilize before calling onAuth
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user?.id === session.user.id) {
+      await onAuth(user);
+    } else {
+      log('Session mismatch — forcing sign out');
+      await supabase.auth.signOut();
+      await onAuth(null);
     }
   } catch (err) {
     log('init session restore error', err);
