@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Techip Admin — Preact (Debug)</title>
+  <style>
+    :root{--brand:#0b3d91;--muted:#6b7280;--bg:#f7f9fc;--card:#fff;--radius:12px}
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,Roboto,Arial;background:var(--bg);color:#0b1a2b;padding:20px}
+    .wrap{max-width:1100px;margin:0 auto}
+    header{display:flex;justify-content:space-between;align-items:center;padding:12px 0}
+    h1{margin:0;font-size:20px}
+    .controls{display:flex;gap:8px;align-items:center}
+    .card{background:var(--card);padding:14px;border-radius:var(--radius);border:1px solid #e6eef8;box-shadow:0 6px 18px rgba(11,61,145,0.03)}
+    .grid{display:flex;gap:16px;margin-top:12px}
+    @media(max-width:980px){.grid{flex-direction:column}}
+    .col{flex:1;min-width:0}
+    .side{flex:0 0 320px}
+    input{padding:10px;border-radius:10px;border:1px solid #e6eef8;background:#fbfdff}
+    button{background:var(--brand);color:#fff;border:0;padding:10px;border-radius:10px;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid #e6eef8;color:#0b1a2b}
+    .muted{color:var(--muted);font-size:13px}
+    ul{list-style:none;padding:0;margin:0}
+    li{padding:10px;border-radius:8px;border:1px solid transparent;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+    li:hover{background:#f1f8ff;border-color:#e2f0ff}
+    .selected{background:#e8f3ff;border-color:#cfe9ff}
+    .feature{display:flex;justify-content:space-between;align-items:center;padding:10px;border-radius:8px;border:1px solid #f1f5f9;background:#fff;margin-bottom:8px}
+    .small{font-size:13px;color:var(--muted)}
+    .debug{margin-top:10px;background:#0b1a2b;color:#fff;padding:10px;border-radius:8px;font-family:monospace;font-size:13px;max-height:160px;overflow:auto}
+    .row{display:flex;gap:8px;align-items:center}
+    .spinner{display:inline-block;color:var(--brand)}
+  </style>
+</head>
+<body>
+  <div id="root" class="wrap"></div>
+
+  <!-- Preact + htm (no build) -->
+  <script type="module">
+    import { h, render } from 'https://unpkg.com/preact@10.16.0?module';
+    import htm from 'https://unpkg.com/htm@3.1.1/dist/htm.module.js';
+    const html = htm.bind(h);
+
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+    // CONFIG (keep your values)
+    const SUPABASE_URL = 'https://cnwerkocgdhimiwuawiv.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNud2Vya29jZ2RoaW1pd3Vha2VwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTMwMjAsImV4cCI6MjA3NzY2OTAyMH0.X0ewxmFBh2ofhIQGPgDucJk9pQJylXDoLTerxYgrouw';
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true } });
+
+    // Helpers
+    const logToDebug = (setDebug) => (...args) => {
+      const txt = args.map(a => (typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a))).join(' ');
+      setDebug(txt);
+      console.log(...args);
+    };
+
+    // Feature map
+    const FEATURES = [
+      { key: 'block_play_store', label: 'Block Google Play Store' },
+      { key: 'disable_bluetooth', label: 'Disable Bluetooth' },
+      { key: 'disable_tethering', label: 'Disable Tethering' },
+      { key: 'disable_sms_mms', label: 'Disable SMS/MMS' },
+      { key: 'enable_firewall', label: 'Enable Firewall (VPN)' },
+      { key: 'disable_factory_reset', label: 'Disable Factory Reset' },
+    ];
+
+    // App
+    function App() {
+      // state via closure (simple)
+      let state = {
+        user: null,
+        profiles: [],
+        devices: [],
+        selectedProfile: null,
+        selectedDevice: null,
+        features: {},
+        loadingProfiles: false,
+        lastRefreshed: null,
+        debug: 'Ready.'
+      };
+
+      // minimal local rerender
+      const root = document.getElementById('root');
+      const setDebug = (s) => { state.debug = s; rerender(); };
+      const log = logToDebug(setDebug);
+
+      // robust session init (wait up to 3s)
+      (async function init() {
+        try {
+          let session = null;
+          const start = Date.now();
+          while (Date.now() - start < 3000) {
+            const res = await supabase.auth.getSession();
+            session = res?.data?.session;
+            if (session?.user) break;
+            await new Promise(r => setTimeout(r, 200));
+          }
+          if (session?.user) {
+            const { data: { user } } = await supabase.auth.getUser();
+            state.user = user;
+            log('init: session restored', user?.email || user?.id);
+            await loadProfiles();
+          } else {
+            log('init: no session restored');
+          }
+        } catch (err) {
+          log('init error', err);
+        }
+      })();
+
+      // Auth sign-in
+      async function signIn(email, password) {
+        try {
+          const res = await supabase.auth.signInWithPassword({ email, password });
+          log('signIn result', res);
+          if (res.error) throw res.error;
+          const { data: { user } } = await supabase.auth.getUser();
+          state.user = user;
+          await loadProfiles();
+        } catch (err) {
+          log('signIn error', err);
+          alert('Sign-in failed: ' + (err?.message || err));
+        } finally { rerender(); }
+      }
+
+      // robust sign out + clear storage + reload
+      async function robustSignOut() {
+        try { await supabase.auth.signOut(); } catch (e) { console.warn(e); }
+        try {
+          Object.keys(localStorage).forEach(k => { if (k.toLowerCase().includes('supabase') || k.toLowerCase().includes('auth')) localStorage.removeItem(k); });
+          Object.keys(sessionStorage).forEach(k => { if (k.toLowerCase().includes('supabase') || k.toLowerCase().includes('auth')) sessionStorage.removeItem(k); });
+        } catch (e) { console.warn('clear storage', e); }
+        state.user = null;
+        state.profiles = [];
+        state.devices = [];
+        state.selectedProfile = null;
+        state.selectedDevice = null;
+        rerender();
+        location.reload();
+      }
+
+      // load profiles with session check and spinner + timestamp
+      async function loadProfiles() {
+        state.loadingProfiles = true; rerender();
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (!sessionData?.session?.access_token) {
+            log('No session before profiles query — forcing sign out');
+            await robustSignOut();
+            return;
+          }
+          const { data, error } = await supabase.from('profiles').select('id,email,created_at,is_admin').order('created_at', { ascending: false }).limit(2000);
+          if (error) throw error;
+          state.profiles = data || [];
+          state.lastRefreshed = new Date();
+          log('profiles loaded', state.profiles.length);
+        } catch (err) {
+          log('loadProfiles err', err);
+          alert('Failed loading users: ' + (err?.message || err));
+        } finally {
+          state.loadingProfiles = false;
+          rerender();
+        }
+      }
+
+      // load devices for a profile
+      async function loadDevicesForProfile(profileId) {
+        state.devices = []; state.selectedDevice = null; rerender();
+        try {
+          const { data, error } = await supabase.from('devices').select('*').eq('owner', profileId).order('created_at', { ascending: false }).limit(2000);
+          if (error) throw error;
+          state.devices = data || [];
+          log('devices loaded', state.devices.length);
+        } catch (err) {
+          log('loadDevices err', err);
+          alert('Failed loading devices: ' + (err?.message || err));
+        } finally { rerender(); }
+      }
+
+      async function toggleFeature(deviceId, key, value) {
+        try {
+          // get latest
+          const { data: latest, error: gErr } = await supabase.from('devices').select('features').eq('id', deviceId).single();
+          if (gErr) throw gErr;
+          const featuresNow = Object.assign({}, latest?.features || {}, { [key]: value });
+          const { data, error } = await supabase.from('devices').update({ features: featuresNow }).eq('id', deviceId).select().single();
+          if (error) throw error;
+          // update local cache
+          const d = state.devices.find(d => d.id === deviceId);
+          if (d) d.features = data.features;
+          log('feature persisted', key, value, deviceId);
+        } catch (err) {
+          log('persistFeatureToggle err', err);
+          alert('Save failed: ' + (err?.message || err));
+        } finally { rerender(); }
+      }
+
+      // UI helpers for inputs
+      let emailVal = '', passVal = '';
+
+      // Render function (preact/htm virtual DOM)
+      function view() {
+        return html`
+          <div>
+            <header>
+              <div>
+                <h1>Techip Admin (Preact)</h1>
+                <div class="small muted">Admin login required to view users and devices</div>
+              </div>
+              <div class="controls">
+                ${state.user ? html`<div class="small muted">Signed in as ${state.user.email || state.user.id}</div>` : null}
+                <button class="ghost" onClick=${() => {
+                  // Dump session button
+                  (async () => {
+                    try {
+                      const { data: sessionData } = await supabase.auth.getSession();
+                      const { data: userData } = await supabase.auth.getUser();
+                      const keys = Object.keys(localStorage).filter(k => /supabase|auth/i.test(k)).map(k => `${k}: ${String(localStorage[k]).slice(0,120)}`);
+                      log('DEBUG sessionData', sessionData);
+                      log('DEBUG userData', userData);
+                      log('DEBUG localStorage keys', keys.join(' | '));
+                      state.debug = `session:${JSON.stringify(sessionData?.session||sessionData)}\nuser:${JSON.stringify(userData?.user||userData)}\nkeys:${keys.join(' | ')}`;
+                      rerender();
+                    } catch (e) { log('dump session err', e); }
+                  })();
+                }}>Dump session</button>
+                <button class="ghost" onClick=${robustSignOut}>Reset session</button>
+                ${state.user ? html`<button class="ghost" onClick=${robustSignOut}>Sign out</button>` : null}
+              </div>
+            </header>
+
+            <div class="grid">
+              <div class="col side card">
+                ${!state.user ? html`
+                  <div>
+                    <div style="margin-bottom:8px"><strong>Admin Sign in</strong></div>
+                    <div class="row" style="margin-bottom:8px">
+                      <input placeholder="email" value=${emailVal} onInput=${e => { emailVal = e.target.value }} />
+                    </div>
+                    <div class="row" style="margin-bottom:8px">
+                      <input placeholder="password" type="password" value=${passVal} onInput=${e => { passVal = e.target.value }} />
+                    </div>
+                    <div class="row">
+                      <button onClick=${() => signIn(emailVal.trim(), passVal)}>Sign in</button>
+                    </div>
+                  </div>
+                ` : html`
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                    <strong>Users</strong>
+                    <div class="row">
+                      <button class="ghost" onClick=${loadProfiles}>Refresh</button>
+                    </div>
+                  </div>
+                  <div class="small muted" style="margin-bottom:8px">
+                    ${state.loadingProfiles ? html`<span class="spinner">⏳ Loading…</span>` : (state.lastRefreshed ? `Last refreshed: ${new Date(state.lastRefreshed).toLocaleString()}` : '')}
+                  </div>
+                  <div style="max-height:520px;overflow:auto">
+                    ${state.profiles.length === 0 && !state.loadingProfiles ? html`<div class="small muted">No users</div>` : html`
+                      <ul>
+                        ${state.profiles.map(p => html`<li class=${state.selectedProfile && state.selectedProfile.id === p.id ? 'selected' : ''} onClick=${async () => { state.selectedProfile = p; state.selectedDevice = null; await loadDevicesForProfile(p.id); rerender(); }}>
+                          <div>${p.email || p.id}</div>
+                          <div class="small muted">${p.is_admin ? 'admin' : ''}</div>
+                        </li>`)}
+                      </ul>
+                    `}
+                  </div>
+                `}
+              </div>
+
+              <div class="col card">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                  <div>
+                    <strong>Devices</strong>
+                    <div class="small muted">${state.selectedProfile ? `for ${state.selectedProfile.email || state.selectedProfile.id}` : 'Select a user'}</div>
+                  </div>
+                  <div>
+                    <button class="ghost" onClick=${async () => { if (!state.selectedProfile) return alert('Select a user first'); await loadDevicesForProfile(state.selectedProfile.id); }}>Refresh</button>
+                    <button class="ghost" onClick=${async () => {
+                      if (!state.selectedProfile) return alert('Select a user first');
+                      const name = prompt('Device name'); if (!name) return;
+                      const model = prompt('Device model') || '';
+                      try {
+                        const { data, error } = await supabase.from('devices').insert([{ name, model, owner: state.selectedProfile.id, features: {} }]).select().single();
+                        if (error) throw error;
+                        await loadDevicesForProfile(state.selectedProfile.id);
+                        alert('Device created: ' + (data.id || data.name || 'ok'));
+                      } catch (e) { log('create device err', e); alert('Create device failed: ' + (e?.message || e)); }
+                    }}>Create device</button>
+                  </div>
+                </div>
+
+                <div style="min-height:120px">
+                  ${state.devices.length === 0 ? html`<div class="small muted">No devices for this user</div>` : html`
+                    <table style="width:100%;border-collapse:collapse">
+                      <thead><tr class="small muted" style="text-align:left"><th style="width:90px">ID</th><th>Name</th><th style="width:140px">Model</th><th>Features</th></tr></thead>
+                      <tbody>
+                        ${state.devices.map(d => html`<tr onClick=${() => { state.selectedDevice = d; state.features = Object.assign({}, d.features || {}); rerender(); }} style="cursor:pointer">
+                          <td>${d.id}</td>
+                          <td>${d.name}</td>
+                          <td>${d.model || ''}</td>
+                          <td class="small">${JSON.stringify(d.features || {})}</td>
+                        </tr>`)}
+                      </tbody>
+                    </table>
+                  `}
+                </div>
+
+                <div style="margin-top:12px">
+                  <strong>Device Features</strong>
+                  <div class="small muted">${state.selectedDevice ? `Editing ${state.selectedDevice.name || state.selectedDevice.id}` : 'Select a device'}</div>
+                  <div style="margin-top:8px">
+                    ${state.selectedDevice ? html`
+                      <div>
+                        ${FEATURES.map(f => html`
+                          <div class="feature">
+                            <div>${f.label}</div>
+                            <div>
+                              <input type="checkbox" checked=${!!(state.selectedDevice.features && state.selectedDevice.features[f.key])} onChange=${e => {
+                                const checked = e.target.checked;
+                                // optimistic update locally
+                                state.selectedDevice.features = Object.assign({}, state.selectedDevice.features || {}, { [f.key]: checked });
+                                rerender();
+                                toggleFeature(state.selectedDevice.id, f.key, checked);
+                              }} />
+                            </div>
+                          </div>
+                        `)}
+                      </div>
+                    ` : null}
+                  </div>
+                </div>
+
+                <div class="debug">${state.debug}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      function rerender() {
+        render(view(), root);
+      }
+
+      // export for initial render
+      rerender();
+      return {};
+    }
+
+    // mount
+    App();
+
+  </script>
+</body>
+</html>
