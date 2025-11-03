@@ -255,6 +255,10 @@
 async function loadProfiles() {
   profilesEmpty.textContent = 'Loading users…';
   profilesList.innerHTML = '';
+  if (profiles.length === 0) {
+  log('Retrying profiles after delay...');
+  setTimeout(loadProfiles, 800); // retry once after 800ms
+  }
 
   // SESSION CHECK — bail out and reset UI if session is missing
   const { data: sessionData } = await supabase.auth.getSession();
